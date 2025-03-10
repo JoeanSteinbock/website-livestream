@@ -1,6 +1,25 @@
 const puppeteer = require('puppeteer');
 const { spawn } = require('child_process');
 const os = require('os');
+const fs = require('fs');
+const path = require('path');
+const https = require('https');
+
+// 背景音乐轨道列表
+const bgTracks = [
+  "https://cdn.pixabay.com/audio/2024/12/26/audio_5686c7b0c3.mp3",
+  "https://cdn.pixabay.com/audio/2025/02/06/audio_97edd31405.mp3",
+  "https://cdn.pixabay.com/audio/2024/12/01/audio_968fc36840.mp3",
+  "https://cdn.pixabay.com/audio/2024/11/05/audio_27b3644bf7.mp3",
+  "https://cdn.pixabay.com/audio/2022/03/29/audio_321d17982c.mp3",
+  "https://cdn.pixabay.com/audio/2025/03/05/audio_c359e40a3e.mp3",
+  "https://cdn.pixabay.com/audio/2024/11/24/audio_e1d4c85046.mp3",
+  "https://cdn.pixabay.com/audio/2024/04/11/audio_52d3ab883f.mp3",
+  "https://cdn.pixabay.com/audio/2021/12/05/audio_c548e46009.mp3",
+  "https://cdn.pixabay.com/audio/2023/04/13/audio_39b7d5ebea.mp3",
+  "https://cdn.pixabay.com/audio/2024/05/02/audio_0ec3e1300a.mp3",
+  "https://cdn.pixabay.com/audio/2024/07/23/audio_9196e2a1ac.mp3",
+];
 
 class WebsiteStreamer {
     constructor(config) {
@@ -8,18 +27,22 @@ class WebsiteStreamer {
             url: config.url || process.env.WEBSITE_URL || 'https://cryptotick.live/bitcoin?pm=true',
             streamKey: config.streamKey,
             resolution: {
-                width: parseInt(config.width || process.env.RESOLUTION_WIDTH || 1280),
-                height: parseInt(config.height || process.env.RESOLUTION_HEIGHT || 720)
+                width: parseInt(config.width || process.env.RESOLUTION_WIDTH || 900),
+                height: parseInt(config.height || process.env.RESOLUTION_HEIGHT || 506)
             },
             retryDelay: parseInt(process.env.RETRY_DELAY || 5000),
             maxRetries: parseInt(process.env.MAX_RETRIES || 3),
-            isMac: os.platform() === 'darwin'
+            isMac: os.platform() === 'darwin',
+            enableAudio: config.enableAudio !== undefined ? config.enableAudio : 
+                        (process.env.ENABLE_AUDIO !== undefined ? 
+                         process.env.ENABLE_AUDIO.toLowerCase() === 'true' : true)
         };
 
         this.browser = null;
         this.ffmpeg = null;
         this.xvfb = null;
         this.retryCount = 0;
+        this.bgMusicPath = null; // 用于存储背景音乐的路径
     }
 
     async start() {
@@ -112,6 +135,12 @@ class WebsiteStreamer {
                 '--kiosk',
                 '--disable-infobars',  // 禁用信息栏
                 '--disable-notifications',  // 禁用通知
+                '--autoplay-policy=no-user-gesture-required',  // 允许自动播放
+                '--disable-web-security',                      // 禁用网页安全策略
+                '--allow-running-insecure-content',           // 允许不安全内容
+                '--disable-audio-output-engagement-rules',    // 禁用音频输出参与规则
+                '--disable-gesture-requirement-for-media',    // 禁用媒体手势要求
+                '--disable-features=AudioServiceOutOfProcess', // 禁用音频服务进程外运行
                 '--user-agent=Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/96.0.4664.110 Safari/537.36'  // 自定义用户代理
             ],
             defaultViewport: null
@@ -245,8 +274,48 @@ class WebsiteStreamer {
         console.log('Page loaded and rendered, starting stream...');
     }
 
+    async downloadBackgroundTrack() {
+        // 随机选择一个背景音乐
+        const randomTrack = bgTracks[Math.floor(Math.random() * bgTracks.length)];
+        console.log(`Downloading background music: ${randomTrack}`);
+        
+        const tempDir = '/tmp';
+        const fileName = path.basename(randomTrack);
+        const filePath = path.join(tempDir, fileName);
+        
+        return new Promise((resolve, reject) => {
+            const file = fs.createWriteStream(filePath);
+            https.get(randomTrack, (response) => {
+                response.pipe(file);
+                file.on('finish', () => {
+                    file.close();
+                    console.log(`Background music downloaded to ${filePath}`);
+                    this.bgMusicPath = filePath;
+                    resolve(filePath);
+                });
+            }).on('error', (err) => {
+                fs.unlink(filePath, () => {}); // 删除不完整的文件
+                console.error(`Error downloading background music: ${err.message}`);
+                reject(err);
+            });
+        });
+    }
+
     async startStreaming() {
         console.log('Starting FFmpeg stream...');
+        
+        // 如果启用了音频，才下载背景音乐
+        let bgMusicPath = null;
+        if (this.config.enableAudio) {
+            try {
+                bgMusicPath = await this.downloadBackgroundTrack();
+                console.log(`Using background music: ${bgMusicPath}`);
+            } catch (error) {
+                console.error('Failed to download background music, using default audio:', error);
+            }
+        } else {
+            console.log('Background audio is disabled');
+        }
         
         // 首先检查音频设备
         if (!this.config.isMac) {
@@ -292,14 +361,31 @@ class WebsiteStreamer {
             '-video_size', `${this.config.resolution.width}x${this.config.resolution.height}`,
             '-draw_mouse', '0',
             '-i', ':99.0+0,0',
-            // 尝试从 PulseAudio 获取系统音频
-            '-f', 'pulse',
-            '-i', 'DummyOutput.monitor',  // 使用之前设置的虚拟音频输出
-            '-c:v', 'libx264',
-            '-c:a', 'aac',
-            '-b:a', '128k',
-            '-ar', '44100',
-            '-shortest',
+            
+            // 根据音频设置决定使用什么音频源
+            ...(this.config.enableAudio ? 
+                (bgMusicPath ? [
+                    '-stream_loop', '-1',  // 循环播放音频
+                    '-i', bgMusicPath,
+                    '-c:v', 'libx264',
+                    '-c:a', 'aac',
+                    '-b:a', '128k',
+                    '-ar', '44100',
+                    '-shortest',
+                ] : [
+                    // 如果没有背景音乐，则使用无声音频
+                    '-f', 'lavfi',
+                    '-i', 'anullsrc=r=44100:cl=stereo',
+                    '-c:v', 'libx264',
+                    '-c:a', 'aac',
+                    '-b:a', '128k',
+                    '-ar', '44100',
+                ]) : [
+                    // 完全禁用音频
+                    '-an',  // 禁用音频
+                    '-c:v', 'libx264',
+                ]
+            ),
             '-preset', 'ultrafast',
             '-tune', 'zerolatency',
             '-b:v', '6000k',
@@ -369,6 +455,16 @@ class WebsiteStreamer {
     }
 
     async cleanup() {
+        // 清理临时音乐文件
+        if (this.bgMusicPath && fs.existsSync(this.bgMusicPath)) {
+            try {
+                fs.unlinkSync(this.bgMusicPath);
+                console.log(`Deleted temporary music file: ${this.bgMusicPath}`);
+            } catch (error) {
+                console.error(`Failed to delete temporary music file: ${error}`);
+            }
+        }
+        
         if (this.browser) await this.browser.close();
         if (this.xvfb) this.xvfb.kill();
         if (this.ffmpeg) this.ffmpeg.kill();
@@ -411,14 +507,16 @@ class WebsiteStreamer {
 // CLI handling
 if (require.main === module) {
     if (process.argv.length < 4 && !process.env.WEBSITE_URL) {
-        console.error('Usage: node index.js <website-url> <youtube-stream-key>');
-        console.error('Or set environment variables: WEBSITE_URL and YOUTUBE_STREAM_KEY');
+        console.error('Usage: node index.js <website-url> <youtube-stream-key> [enable-audio]');
+        console.error('Or set environment variables: WEBSITE_URL, YOUTUBE_STREAM_KEY, and ENABLE_AUDIO');
+        console.error('enable-audio: true or false (default: true)');
         process.exit(1);
     }
 
     const streamer = new WebsiteStreamer({
         url: process.argv[2] || process.env.WEBSITE_URL,
-        streamKey: process.argv[3] || process.env.YOUTUBE_STREAM_KEY
+        streamKey: process.argv[3] || process.env.YOUTUBE_STREAM_KEY,
+        enableAudio: process.argv[4] !== undefined ? process.argv[4].toLowerCase() === 'true' : undefined
     });
 
     streamer.start().catch(console.error);
