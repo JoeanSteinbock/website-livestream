@@ -7,6 +7,7 @@ RUN apk add --no-cache \
     chromium \
     ffmpeg \
     xvfb \
+    xvfb-run \
     ca-certificates
 
 # Create app directory
