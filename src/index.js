@@ -104,7 +104,9 @@ class WebsiteStreamer {
             args: [
                 '--no-sandbox',
                 '--disable-setuid-sandbox',
-                '--disable-gpu'
+                '--disable-gpu',
+                '--disable-dev-shm-usage',
+                `--window-size=${this.config.resolution.width},${this.config.resolution.height}`
             ],
             defaultViewport: {
                 width: this.config.resolution.width,
@@ -128,9 +130,17 @@ class WebsiteStreamer {
             timeout: 60000
         });
 
+        // 等待页面完全渲染
+        console.log('Waiting for page to render...');
+        await page.evaluate(() => new Promise(resolve => {
+            requestAnimationFrame(() => {
+                requestAnimationFrame(resolve);
+            });
+        }));
+
         // 等待额外时间确保页面完全渲染
         await new Promise(resolve => setTimeout(resolve, 5000));
-        console.log('Page loaded, starting stream...');
+        console.log('Page loaded and rendered, starting stream...');
     }
 
     async startStreaming() {
@@ -160,6 +170,7 @@ class WebsiteStreamer {
             '-f', 'x11grab',
             '-framerate', '30',
             '-video_size', `${this.config.resolution.width}x${this.config.resolution.height}`,
+            '-draw_mouse', '0',
             '-i', ':99',
             '-c:v', 'libx264',
             '-preset', 'veryfast',
@@ -176,6 +187,8 @@ class WebsiteStreamer {
             '-f', 'flv',
             '-flvflags', 'no_duration_filesize',
             '-threads', '4',
+            '-probesize', '42M',
+            '-analyzeduration', '5000000',
             `rtmp://a.rtmp.youtube.com/live2/${this.config.streamKey}`
         ];
 
