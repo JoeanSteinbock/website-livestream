@@ -63,7 +63,6 @@ class WebsiteStreamer {
         const page = await this.browser.newPage();
         page.on('error', this.handleError.bind(this));
 
-        // 设置页面视口大小
         await page.setViewport({
             width: this.config.resolution.width,
             height: this.config.resolution.height,
@@ -72,9 +71,13 @@ class WebsiteStreamer {
 
         console.log(`Navigating to ${this.config.url}...`);
         await page.goto(this.config.url, {
-            waitUntil: 'networkidle0',
-            timeout: 30000
+            waitUntil: ['networkidle0', 'domcontentloaded', 'load'],
+            timeout: 60000
         });
+
+        // 等待额外时间确保页面完全渲染
+        await new Promise(resolve => setTimeout(resolve, 5000));
+        console.log('Page loaded, starting stream...');
     }
 
     async startStreaming() {
@@ -82,17 +85,23 @@ class WebsiteStreamer {
         const ffmpegArgs = this.config.isMac ? [
             '-f', 'avfoundation',
             '-capture_cursor', '1',
-            '-i', '2:none',
+            '-i', '1:none',
             '-framerate', '30',
             '-c:v', 'libx264',
             '-preset', 'veryfast',
-            '-b:v', '2500k',
-            '-maxrate', '4000k',
-            '-bufsize', '8000k',
+            '-tune', 'zerolatency',
+            '-b:v', '6000k',
+            '-minrate', '3000k',
+            '-maxrate', '6000k',
+            '-bufsize', '12000k',
             '-pix_fmt', 'yuv420p',
             '-g', '60',
-            '-x264-params', 'keyint=60:min-keyint=60',
+            '-keyint_min', '60',
+            '-force_key_frames', 'expr:gte(t,n_forced*2)',
+            '-sc_threshold', '0',
             '-f', 'flv',
+            '-flvflags', 'no_duration_filesize',
+            '-threads', '4',
             `rtmp://a.rtmp.youtube.com/live2/${this.config.streamKey}`
         ] : [
             '-f', 'x11grab',
@@ -101,19 +110,43 @@ class WebsiteStreamer {
             '-i', ':99',
             '-c:v', 'libx264',
             '-preset', 'veryfast',
-            '-b:v', '2500k',
-            '-maxrate', '4000k',
-            '-bufsize', '8000k',
+            '-tune', 'zerolatency',
+            '-b:v', '6000k',
+            '-minrate', '3000k',
+            '-maxrate', '6000k',
+            '-bufsize', '12000k',
             '-pix_fmt', 'yuv420p',
             '-g', '60',
-            '-x264-params', 'keyint=60:min-keyint=60',
+            '-keyint_min', '60',
+            '-force_key_frames', 'expr:gte(t,n_forced*2)',
+            '-sc_threshold', '0',
             '-f', 'flv',
+            '-flvflags', 'no_duration_filesize',
+            '-threads', '4',
             `rtmp://a.rtmp.youtube.com/live2/${this.config.streamKey}`
         ];
 
         this.ffmpeg = spawn('ffmpeg', ffmpegArgs);
-        this.ffmpeg.stderr.on('data', (data) => console.log(`FFmpeg: ${data}`));
-        this.ffmpeg.on('error', this.handleError.bind(this));
+        
+        this.ffmpeg.stderr.on('data', (data) => {
+            const message = data.toString();
+            console.log(`FFmpeg: ${message}`);
+            if (message.includes('Error') || message.includes('error')) {
+                console.error('FFmpeg error detected:', message);
+            }
+        });
+
+        this.ffmpeg.on('error', (error) => {
+            console.error('FFmpeg process error:', error);
+            this.handleError();
+        });
+
+        this.ffmpeg.on('exit', (code, signal) => {
+            console.log(`FFmpeg process exited with code ${code} and signal ${signal}`);
+            if (code !== 0) {
+                this.handleError();
+            }
+        });
     }
 
     async handleError() {
