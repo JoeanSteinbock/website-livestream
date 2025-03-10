@@ -490,7 +490,7 @@ class WebsiteStreamer {
             '-framerate', '30',
             '-video_size', `${this.config.resolution.width}x${this.config.resolution.height}`,
             '-draw_mouse', '0',
-            '-i', ':99.0+0,0',
+            '-i', ':99.0+0,40',  // 从 y=40 开始捕获，跳过顶部通知栏
             
             // 根据音频设置决定使用什么音频源
             ...(this.config.enableAudio ? 
