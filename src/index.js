@@ -64,6 +64,7 @@ class WebsiteStreamer {
         if (!this.config.isMac) {
             console.log('Setting up virtual display...');
             
+            // 使用固定的显示器编号
             const displayNum = 99;
             
             // 清理可能存在的锁文件和进程
@@ -83,7 +84,9 @@ class WebsiteStreamer {
                 '-ac',
                 '-nolisten', 'tcp'
             ]);
-            process.env.DISPLAY = `:99`;  // 使用固定的显示器编号
+            
+            // 设置环境变量
+            process.env.DISPLAY = `:${displayNum}`;
 
             // 等待 Xvfb 启动
             await new Promise((resolve, reject) => {
@@ -103,7 +106,6 @@ class WebsiteStreamer {
                     }
                 });
 
-                // 简单地等待一段时间，确保 Xvfb 启动
                 setTimeout(() => {
                     if (this.xvfb.exitCode === null) {
                         // 检查 X11 socket 文件是否存在
