@@ -83,7 +83,7 @@ class WebsiteStreamer {
                 '-ac',           // 禁用访问控制
                 '-nolisten', 'tcp'  // 不监听 TCP 端口
             ]);
-            process.env.DISPLAY = `:${displayNum}`;
+            process.env.DISPLAY = `:99`;  // 使用固定的显示器编号
 
             // 添加 Xvfb 日志
             this.xvfb.stdout.on('data', (data) => {
@@ -383,7 +383,7 @@ class WebsiteStreamer {
             '-framerate', '30',
             '-video_size', `${this.config.resolution.width}x${this.config.resolution.height}`,
             '-draw_mouse', '0',
-            '-i', ':99.0+0,0',
+            '-i', ':99.0+0,0',  // 使用固定的格式
             
             // 根据音频设置决定使用什么音频源
             ...(this.config.enableAudio ? 
