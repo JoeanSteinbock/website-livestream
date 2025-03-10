@@ -21,6 +21,8 @@ const bgTracks = [
   "https://cdn.pixabay.com/audio/2024/07/23/audio_9196e2a1ac.mp3",
 ];
 
+let playedTracks = [];
+
 class WebsiteStreamer {
     constructor(config) {
         this.config = {
@@ -43,6 +45,7 @@ class WebsiteStreamer {
         this.xvfb = null;
         this.retryCount = 0;
         this.bgMusicPath = null; // 用于存储背景音乐的路径
+        this.currentTrackIndex = null; // 跟踪当前播放的曲目索引
     }
 
     async start() {
@@ -124,6 +127,7 @@ class WebsiteStreamer {
         console.log('Starting browser...');
         this.browser = await puppeteer.launch({
             headless: false,
+            ignoreDefaultArgs: ["--enable-automation"],
             args: [
                 '--no-sandbox',
                 '--disable-setuid-sandbox',
@@ -133,17 +137,18 @@ class WebsiteStreamer {
                 `--window-size=${this.config.resolution.width},${this.config.resolution.height}`,
                 '--start-maximized',
                 '--kiosk',
-                '--disable-infobars',  // 禁用信息栏
-                '--disable-notifications',  // 禁用通知
-                '--autoplay-policy=no-user-gesture-required',  // 允许自动播放
-                '--disable-web-security',                      // 禁用网页安全策略
-                '--allow-running-insecure-content',           // 允许不安全内容
-                '--disable-audio-output-engagement-rules',    // 禁用音频输出参与规则
-                '--disable-gesture-requirement-for-media',    // 禁用媒体手势要求
-                '--disable-features=AudioServiceOutOfProcess', // 禁用音频服务进程外运行
-                '--user-agent=Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/96.0.4664.110 Safari/537.36'  // 自定义用户代理
+                '--disable-infobars',
+                '--disable-notifications',
+                '--autoplay-policy=no-user-gesture-required',
+                '--disable-web-security',
+                '--allow-running-insecure-content',
+                '--disable-audio-output-engagement-rules',
+                '--disable-gesture-requirement-for-media',
+                '--disable-features=AudioServiceOutOfProcess',
+                '--user-agent=Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/96.0.4664.110 Safari/537.36'
             ],
-            defaultViewport: null
+            defaultViewport: null,
+            ignoreHTTPSErrors: true
         });
 
         const page = await this.browser.newPage();
@@ -156,10 +161,9 @@ class WebsiteStreamer {
         // 启用 JavaScript 控制台日志
         page.on('console', msg => console.log('Browser console:', msg.text()));
 
-        // 隐藏自动化控制条
+        // 简化的自动化通知处理
         await page.evaluateOnNewDocument(() => {
             Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
-            // 移除 "Chrome is being controlled by automated test software" 信息栏
             if (window.chrome) {
                 window.chrome.app = { InstallState: 'hehe', RunningState: 'hehe' };
             }
@@ -182,7 +186,7 @@ class WebsiteStreamer {
         
         // 等待页面上的特定元素出现
         try {
-            await page.waitForSelector('.chart-container', { timeout: 30000 });
+            await page.waitForSelector('.chart-container', { timeout: 3000 });
             console.log('Chart container found');
         } catch (error) {
             console.log('Could not find chart container, continuing anyway');
@@ -275,17 +279,36 @@ class WebsiteStreamer {
     }
 
     async downloadBackgroundTrack() {
-        // 随机选择一个背景音乐
-        const randomTrack = bgTracks[Math.floor(Math.random() * bgTracks.length)];
-        console.log(`Downloading background music: ${randomTrack}`);
+        // 选择一个未播放过的背景音乐
+        let availableTracks = bgTracks.filter((_, index) => !playedTracks.includes(index));
+        
+        // 如果所有曲目都已播放过，则重置
+        if (availableTracks.length === 0) {
+            console.log('All tracks have been played, resetting play history');
+            playedTracks = [];
+            availableTracks = bgTracks;
+        }
+        
+        // 随机选择一个未播放的曲目
+        const randomIndex = Math.floor(Math.random() * availableTracks.length);
+        const selectedTrack = availableTracks[randomIndex];
+        
+        // 找到所选曲目在原始数组中的索引
+        const originalIndex = bgTracks.indexOf(selectedTrack);
+        this.currentTrackIndex = originalIndex;
+        
+        // 将此曲目添加到已播放列表中
+        playedTracks.push(originalIndex);
+        
+        console.log(`Downloading background music [${originalIndex + 1}/${bgTracks.length}]: ${selectedTrack}`);
         
         const tempDir = '/tmp';
-        const fileName = path.basename(randomTrack);
+        const fileName = path.basename(selectedTrack);
         const filePath = path.join(tempDir, fileName);
         
         return new Promise((resolve, reject) => {
             const file = fs.createWriteStream(filePath);
-            https.get(randomTrack, (response) => {
+            https.get(selectedTrack, (response) => {
                 response.pipe(file);
                 file.on('finish', () => {
                     file.close();
