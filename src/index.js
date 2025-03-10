@@ -407,6 +407,26 @@ class WebsiteStreamer {
         
         console.log(`Downloading background music [${originalIndex + 1}/${bgTracks.length}]: ${selectedTrack}`);
         
+        // 如果所有曲目都已播放过，则重置
+        if (availableTracks.length === 0) {
+            console.log('All tracks have been played, resetting play history');
+            playedTracks = [];
+            availableTracks = bgTracks;
+        }
+        
+        // 随机选择一个未播放的曲目
+        const randomIndex = Math.floor(Math.random() * availableTracks.length);
+        const selectedTrack = availableTracks[randomIndex];
+        
+        // 找到所选曲目在原始数组中的索引
+        const originalIndex = bgTracks.indexOf(selectedTrack);
+        this.currentTrackIndex = originalIndex;
+        
+        // 将此曲目添加到已播放列表中
+        playedTracks.push(originalIndex);
+        
+        console.log(`Downloading background music [${originalIndex + 1}/${bgTracks.length}]: ${selectedTrack}`);
+        
         // 下载逻辑保持不变
         const tempDir = '/tmp';
         const fileName = path.basename(selectedTrack);
