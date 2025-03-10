@@ -40,7 +40,18 @@ class WebsiteStreamer {
             this.xvfb = spawn('Xvfb', [':99', '-screen', '0',
                 `${this.config.resolution.width}x${this.config.resolution.height}x24`]);
             process.env.DISPLAY = ':99';
-            await new Promise(resolve => setTimeout(resolve, 1000));
+
+            // 添加 Xvfb 日志
+            this.xvfb.stdout.on('data', (data) => {
+                console.log(`Xvfb stdout: ${data}`);
+            });
+            this.xvfb.stderr.on('data', (data) => {
+                console.log(`Xvfb stderr: ${data}`);
+            });
+
+            // 等待 Xvfb 启动
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            console.log('Xvfb should be ready');
         }
     }
 
