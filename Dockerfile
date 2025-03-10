@@ -1,12 +1,11 @@
 FROM node:22-alpine
 
 # Install dependencies
-RUN apt-get update && apt-get install -y \
+RUN apk add --no-cache \
     chromium \
     ffmpeg \
     xvfb \
-    ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
+    ca-certificates
 
 # Create app directory and user
 RUN mkdir -p /home/node/app && chown -R node:node /home/node/app
@@ -26,7 +25,7 @@ COPY --chown=node:node . .
 
 # Set environment variables
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
-    PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
+    PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
 
 # Create entrypoint script
 RUN echo '#!/bin/sh\nxvfb-run --server-args="-screen 0 1280x720x24" node src/index.js "$@"' > entrypoint.sh \
