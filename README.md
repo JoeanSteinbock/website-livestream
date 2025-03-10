@@ -18,7 +18,7 @@ Check out our 24/7 cryptocurrency price tracking channel: [CryptoTick Live](http
 
 ```bash
 # Pull and run with Docker
-docker run ghcr.io/your-username/website-livestream \
+docker run ghcr.io/JoeanSteinbock/website-livestream \
   <website-url> <youtube-stream-key>
 ```
 
