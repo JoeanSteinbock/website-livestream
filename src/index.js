@@ -181,12 +181,13 @@ class WebsiteStreamer {
     async startStreaming() {
         console.log('Starting FFmpeg stream...');
         const ffmpegArgs = this.config.isMac ? [
+            // macOS configuration
             '-f', 'avfoundation',
             '-capture_cursor', '1',
             '-i', '1:none',
             '-framerate', '30',
             '-c:v', 'libx264',
-            '-preset', 'veryfast',
+            '-preset', 'ultrafast',
             '-tune', 'zerolatency',
             '-b:v', '6000k',
             '-minrate', '3000k',
@@ -202,13 +203,14 @@ class WebsiteStreamer {
             '-threads', '4',
             `rtmp://a.rtmp.youtube.com/live2/${this.config.streamKey}`
         ] : [
+            // Linux configuration (using x11grab)
             '-f', 'x11grab',
             '-framerate', '30',
             '-video_size', `${this.config.resolution.width}x${this.config.resolution.height}`,
             '-draw_mouse', '0',
-            '-i', ':99',
+            '-i', ':99.0',
             '-c:v', 'libx264',
-            '-preset', 'veryfast',
+            '-preset', 'ultrafast',
             '-tune', 'zerolatency',
             '-b:v', '6000k',
             '-minrate', '3000k',
@@ -224,9 +226,23 @@ class WebsiteStreamer {
             '-threads', '4',
             '-probesize', '42M',
             '-analyzeduration', '5000000',
+            '-vsync', '1',
+            '-copyts',
             `rtmp://a.rtmp.youtube.com/live2/${this.config.streamKey}`
         ];
 
+        // 在启动 FFmpeg 之前检查版本和功能
+        try {
+            const versionCheck = spawn('ffmpeg', ['-version']);
+            versionCheck.stdout.on('data', (data) => {
+                console.log('FFmpeg version info:', data.toString());
+            });
+            await new Promise((resolve) => versionCheck.on('close', resolve));
+        } catch (error) {
+            console.error('Error checking FFmpeg version:', error);
+        }
+
+        console.log('Starting FFmpeg with args:', ffmpegArgs.join(' '));
         this.ffmpeg = spawn('ffmpeg', ffmpegArgs);
         
         this.ffmpeg.stderr.on('data', (data) => {
