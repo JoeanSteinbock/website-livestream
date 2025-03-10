@@ -491,7 +491,7 @@ class WebsiteStreamer {
             '-framerate', '30',
             '-video_size', `${this.config.resolution.width}x${this.config.resolution.height}`,
             '-draw_mouse', '0',
-            '-i', `${process.env.DISPLAY}`,
+            '-i', `${process.env.DISPLAY ?? ":99.0+0,0"}`,
             
             // 根据音频设置决定使用什么音频源
             ...(this.config.enableAudio ? 
@@ -515,24 +515,23 @@ class WebsiteStreamer {
                     '-c:v', 'libx264',
                 ]
             ),
-            '-c:v', 'libx264',
-            '-preset', 'veryfast',
+            '-preset', 'ultrafast',
             '-tune', 'zerolatency',
-            '-b:v', '4500k',
-            '-maxrate', '4500k',
-            '-bufsize', '9000k',
+            '-b:v', '6000k',
+            '-minrate', '3000k',
+            '-maxrate', '6000k',
+            '-bufsize', '12000k',
             '-pix_fmt', 'yuv420p',
-            '-g', '30',
-            '-keyint_min', '30',
-            '-x264opts', 'no-scenecut',
-            '-profile:v', 'main',
-            '-level', '4.0',
+            '-g', '60',
+            '-keyint_min', '60',
+            '-force_key_frames', 'expr:gte(t,n_forced*2)',
+            '-sc_threshold', '0',
             '-f', 'flv',
             '-flvflags', 'no_duration_filesize',
             '-threads', '4',
             '-probesize', '42M',
             '-analyzeduration', '5000000',
-            '-fps_mode', 'cfr',
+            '-fps_mode', 'cfr',  // 使用 fps_mode 代替已弃用的 vsync
             `rtmp://a.rtmp.youtube.com/live2/${this.config.streamKey}`
         ];
 
