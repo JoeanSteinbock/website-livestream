@@ -211,12 +211,12 @@ class WebsiteStreamer {
             '-i', ':99.0',
             // 添加音频捕获
             '-f', 'pulse',
-            '-ac', '2',            // 2 个音频通道（立体声）
-            '-i', 'default',       // 使用默认音频设备
-            '-c:v', 'libx264',     // 视频编码器
-            '-c:a', 'aac',         // 音频编码器
-            '-b:a', '128k',        // 音频比特率
-            '-ar', '44100',        // 音频采样率
+            '-ac', '2',
+            '-i', 'DummyOutput.monitor',  // 使用我们创建的虚拟设备
+            '-c:v', 'libx264',
+            '-c:a', 'aac',
+            '-b:a', '128k',
+            '-ar', '44100',
             '-preset', 'ultrafast',
             '-tune', 'zerolatency',
             '-b:v', '6000k',
