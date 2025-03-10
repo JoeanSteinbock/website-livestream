@@ -80,15 +80,14 @@ class WebsiteStreamer {
             this.xvfb = spawn('Xvfb', [
                 `:${displayNum}`,
                 '-screen', '0',
-                `${this.config.resolution.width}x${this.config.resolution.height + 40}x24`,  // 增加高度
-                '-ac',           // 禁用访问控制
-                '-nolisten', 'tcp'  // 不监听 TCP 端口
+                `${this.config.resolution.width}x${this.config.resolution.height + 40}x24`,
+                '-ac',
+                '-nolisten', 'tcp'
             ]);
 
-            // 设置 DISPLAY 环境变量
             process.env.DISPLAY = `:${displayNum}`;
 
-            // 等待 Xvfb 启动并检查是否成功
+            // 等待 Xvfb 启动
             await new Promise((resolve, reject) => {
                 let errorOutput = '';
                 
@@ -106,19 +105,16 @@ class WebsiteStreamer {
                     }
                 });
 
-                // 增加等待时间确保 Xvfb 完全启动
+                // 简单地等待一段时间，确保 Xvfb 启动
                 setTimeout(() => {
                     if (this.xvfb.exitCode === null) {
-                        // 验证显示器是否可用
-                        const testXvfb = spawn('xdpyinfo', ['-display', `:${displayNum}`]);
-                        testXvfb.on('close', (code) => {
-                            if (code === 0) {
-                                console.log('Xvfb started successfully');
-                                resolve();
-                            } else {
-                                reject(new Error('Xvfb started but display is not accessible'));
-                            }
-                        });
+                        // 检查 X11 socket 文件是否存在
+                        if (fs.existsSync(`/tmp/.X11-unix/X${displayNum}`)) {
+                            console.log('Xvfb started successfully');
+                            resolve();
+                        } else {
+                            reject(new Error('Xvfb socket file not found'));
+                        }
                     } else {
                         reject(new Error(`Xvfb failed to start: ${errorOutput}`));
                     }

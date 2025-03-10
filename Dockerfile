@@ -11,7 +11,8 @@ RUN apk add --no-cache \
     pulseaudio-utils \
     xwd \
     imagemagick \
-    ca-certificates
+    ca-certificates \
+    xorg-server-utils
 
 # Create app directory
 WORKDIR /app
