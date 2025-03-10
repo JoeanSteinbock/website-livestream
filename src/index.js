@@ -5,14 +5,14 @@ const os = require('os');
 class WebsiteStreamer {
     constructor(config) {
         this.config = {
-            url: config.url || 'https://example.com',
+            url: config.url || process.env.WEBSITE_URL || 'https://example.com',
             streamKey: config.streamKey,
             resolution: {
-                width: config.width || 1280,
-                height: config.height || 720
+                width: parseInt(config.width || process.env.RESOLUTION_WIDTH || 1280),
+                height: parseInt(config.height || process.env.RESOLUTION_HEIGHT || 720)
             },
-            retryDelay: 5000,
-            maxRetries: 3,
+            retryDelay: parseInt(process.env.RETRY_DELAY || 5000),
+            maxRetries: parseInt(process.env.MAX_RETRIES || 3),
             isMac: os.platform() === 'darwin'
         };
         
@@ -139,14 +139,15 @@ class WebsiteStreamer {
 
 // CLI handling
 if (require.main === module) {
-    if (process.argv.length < 4) {
+    if (process.argv.length < 4 && !process.env.WEBSITE_URL) {
         console.error('Usage: node index.js <website-url> <youtube-stream-key>');
+        console.error('Or set environment variables: WEBSITE_URL and YOUTUBE_STREAM_KEY');
         process.exit(1);
     }
 
     const streamer = new WebsiteStreamer({
-        url: process.argv[2],
-        streamKey: process.argv[3]
+        url: process.argv[2] || process.env.WEBSITE_URL,
+        streamKey: process.argv[3] || process.env.YOUTUBE_STREAM_KEY
     });
 
     streamer.start().catch(console.error);

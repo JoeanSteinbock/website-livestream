@@ -1,4 +1,4 @@
- # Website Live Streamer
+# Website Live Streamer
 
 A tool to livestream any website to YouTube.
 
@@ -11,35 +11,65 @@ A tool to livestream any website to YouTube.
 
 ## Usage
 
-### Local Execution
+### Using Docker (Recommended)
 
-1. Install dependencies:
+1. Build the image locally:
    ```bash
-   npm install
-   ```
-
-2. Run the program:
-   ```bash
-   node src/index.js <website-url> <youtube-stream-key>
-   ```
-
-### Using Docker
-
-1. Pull the image:
-   ```bash
-   docker pull ghcr.io/JoeanSteinbock/website-livestream:latest
+   docker build -t website-livestream .
    ```
 
 2. Run the container:
    ```bash
-   docker run ghcr.io/JoeanSteinbock/website-livestream <website-url> <youtube-stream-key>
+   docker run website-livestream <website-url> <youtube-stream-key>
    ```
+
+   Or with custom resolution:
+   ```bash
+   docker run -e RESOLUTION_WIDTH=1920 -e RESOLUTION_HEIGHT=1080 website-livestream <website-url> <youtube-stream-key>
+   ```
+
+### Local Execution (Alternative)
+
+1. Install system dependencies:
+   
+   For Linux (Ubuntu/Debian):
+   ```bash
+   sudo apt-get update
+   sudo apt-get install -y ffmpeg xvfb chromium
+   ```
+
+   For macOS:
+   ```bash
+   brew install ffmpeg chromium
+   ```
+
+2. Install Node.js dependencies:
+   ```bash
+   npm install
+   ```
+
+3. Run the program:
+   ```bash
+   node src/index.js <website-url> <youtube-stream-key>
+   ```
+
+## Environment Variables
+
+You can customize the streaming behavior with these environment variables:
+
+- `RESOLUTION_WIDTH`: Video width (default: 1280)
+- `RESOLUTION_HEIGHT`: Video height (default: 720)
+- `RETRY_DELAY`: Delay between retries in ms (default: 5000)
+- `MAX_RETRIES`: Maximum retry attempts (default: 3)
 
 ## System Requirements
 
-- Node.js 18+
-- FFmpeg
-- Xvfb (required on Linux)
+- Docker (recommended)
+- Or for local execution:
+  - Node.js 18+
+  - FFmpeg
+  - Xvfb (Linux only)
+  - Chromium/Chrome
 
 ## Development
 
@@ -51,3 +81,21 @@ A tool to livestream any website to YouTube.
 ## License
 
 MIT
+
+## Prerequisites
+
+### For Linux:
+```bash
+# Ubuntu/Debian
+sudo apt-get update
+sudo apt-get install -y ffmpeg xvfb
+
+# CentOS/RHEL
+sudo yum install -y ffmpeg xorg-x11-server-Xvfb
+```
+
+### For macOS:
+```bash
+# Using Homebrew
+brew install ffmpeg
+```
