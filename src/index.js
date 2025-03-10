@@ -488,14 +488,15 @@ class WebsiteStreamer {
             // Linux 配置
             '-f', 'x11grab',
             '-framerate', '30',
-            '-video_size', `${this.config.resolution.width}x${this.config.resolution.height}`,
+            '-video_size', `${this.config.resolution.width}x${this.config.resolution.height + 40}`,
             '-draw_mouse', '0',
-            '-i', ':99.0+0,40',  // 从 y=40 开始捕获，跳过顶部通知栏
+            '-i', ':99.0',
+            '-filter:v', `crop=${this.config.resolution.width}:${this.config.resolution.height}:0:40`,
             
             // 根据音频设置决定使用什么音频源
             ...(this.config.enableAudio ? 
                 (bgMusicPath ? [
-                    '-stream_loop', '-1',  // 循环播放音频
+                    '-stream_loop', '-1',
                     '-i', bgMusicPath,
                     '-c:v', 'libx264',
                     '-c:a', 'aac',
@@ -503,7 +504,6 @@ class WebsiteStreamer {
                     '-ar', '44100',
                     '-shortest',
                 ] : [
-                    // 如果没有背景音乐，则使用无声音频
                     '-f', 'lavfi',
                     '-i', 'anullsrc=r=44100:cl=stereo',
                     '-c:v', 'libx264',
@@ -511,8 +511,7 @@ class WebsiteStreamer {
                     '-b:a', '128k',
                     '-ar', '44100',
                 ]) : [
-                    // 完全禁用音频
-                    '-an',  // 禁用音频
+                    '-an',
                     '-c:v', 'libx264',
                 ]
             ),
@@ -532,7 +531,7 @@ class WebsiteStreamer {
             '-threads', '4',
             '-probesize', '42M',
             '-analyzeduration', '5000000',
-            '-fps_mode', 'cfr',  // 使用 fps_mode 代替已弃用的 vsync
+            '-fps_mode', 'cfr',
             `rtmp://a.rtmp.youtube.com/live2/${this.config.streamKey}`
         ];
 
