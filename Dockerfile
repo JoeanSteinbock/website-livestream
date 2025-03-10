@@ -9,6 +9,8 @@ RUN apk add --no-cache \
     xvfb \
     pulseaudio \
     pulseaudio-utils \
+    xwd \
+    imagemagick \
     ca-certificates
 
 # Create app directory

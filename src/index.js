@@ -100,20 +100,18 @@ class WebsiteStreamer {
     async setupBrowser() {
         console.log('Starting browser...');
         this.browser = await puppeteer.launch({
-            headless: 'new',
+            headless: false,  // 改为非无头模式，在虚拟显示器上显示
             args: [
                 '--no-sandbox',
                 '--disable-setuid-sandbox',
                 '--disable-gpu',
                 '--disable-dev-shm-usage',
-                '--disable-web-security',  // 添加这个以处理可能的 CORS 问题
-                `--window-size=${this.config.resolution.width},${this.config.resolution.height}`
+                '--disable-web-security',
+                `--window-size=${this.config.resolution.width},${this.config.resolution.height}`,
+                '--start-maximized',  // 确保窗口最大化
+                '--kiosk'  // 使用全屏模式
             ],
-            defaultViewport: {
-                width: this.config.resolution.width,
-                height: this.config.resolution.height,
-                deviceScaleFactor: 1
-            }
+            defaultViewport: null  // 不设置默认视口，让浏览器使用窗口大小
         });
 
         const page = await this.browser.newPage();
@@ -219,12 +217,12 @@ class WebsiteStreamer {
             '-threads', '4',
             `rtmp://a.rtmp.youtube.com/live2/${this.config.streamKey}`
         ] : [
-            // Linux 配置 - 仅捕获视频，暂时禁用音频
+            // Linux 配置
             '-f', 'x11grab',
             '-framerate', '30',
             '-video_size', `${this.config.resolution.width}x${this.config.resolution.height}`,
             '-draw_mouse', '0',
-            '-i', ':99.0',
+            '-i', ':99.0+0,0',  // 添加偏移量 +0,0 明确指定捕获区域
             // 使用无声音频流替代
             '-f', 'lavfi',
             '-i', 'anullsrc=r=44100:cl=stereo',
@@ -319,6 +317,25 @@ class WebsiteStreamer {
             await this.cleanup();
             process.exit();
         });
+    }
+
+    async debugXvfbDisplay() {
+        if (!this.config.isMac) {
+            console.log('Taking Xvfb screenshot for debugging...');
+            try {
+                // 使用 xwd 工具捕获 Xvfb 屏幕
+                const xwdProcess = spawn('xwd', ['-root', '-display', ':99', '-out', '/tmp/xvfb-screen.xwd']);
+                await new Promise((resolve) => xwdProcess.on('close', resolve));
+                
+                // 转换为 PNG 格式
+                const convertProcess = spawn('convert', ['/tmp/xvfb-screen.xwd', '/tmp/xvfb-screen.png']);
+                await new Promise((resolve) => convertProcess.on('close', resolve));
+                
+                console.log('Xvfb screenshot saved to /tmp/xvfb-screen.png');
+            } catch (error) {
+                console.error('Failed to capture Xvfb screenshot:', error);
+            }
+        }
     }
 }
 
