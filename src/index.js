@@ -21,7 +21,6 @@ const bgTracks = [
   "https://cdn.pixabay.com/audio/2024/07/23/audio_9196e2a1ac.mp3",
 ];
 
-// 在 WebsiteStreamer 类之外定义一个静态变量来跟踪已播放的曲目
 let playedTracks = [];
 
 class WebsiteStreamer {
@@ -137,18 +136,18 @@ class WebsiteStreamer {
                 `--window-size=${this.config.resolution.width},${this.config.resolution.height}`,
                 '--start-maximized',
                 '--kiosk',
-                '--disable-infobars',  // 禁用信息栏
-                '--disable-notifications',  // 禁用通知
-                '--autoplay-policy=no-user-gesture-required',  // 允许自动播放
-                '--disable-web-security',                      // 禁用网页安全策略
-                '--allow-running-insecure-content',           // 允许不安全内容
-                '--disable-audio-output-engagement-rules',    // 禁用音频输出参与规则
-                '--disable-gesture-requirement-for-media',    // 禁用媒体手势要求
-                '--disable-features=AudioServiceOutOfProcess', // 禁用音频服务进程外运行
-                '--user-agent=Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/96.0.4664.110 Safari/537.36'  // 自定义用户代理
+                '--disable-infobars',
+                '--disable-notifications',
+                '--autoplay-policy=no-user-gesture-required',
+                '--disable-web-security',
+                '--allow-running-insecure-content',
+                '--disable-audio-output-engagement-rules',
+                '--disable-gesture-requirement-for-media',
+                '--disable-features=AudioServiceOutOfProcess',
+                '--user-agent=Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/96.0.4664.110 Safari/537.36'
             ],
             defaultViewport: null,
-            ignoreHTTPSErrors: true,
+            ignoreHTTPSErrors: true
         });
 
         const page = await this.browser.newPage();
@@ -161,12 +160,10 @@ class WebsiteStreamer {
         // 启用 JavaScript 控制台日志
         page.on('console', msg => console.log('Browser console:', msg.text()));
 
-        // 隐藏自动化控制条
+        // 简化的自动化通知处理
         await page.evaluateOnNewDocument(() => {
             // 阻止 Chrome 自动化通知
             Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
-            
-            // 更彻底地修改 Chrome 属性
             if (window.chrome) {
                 // 修改 Chrome 应用状态
                 window.chrome.app = {
@@ -293,7 +290,7 @@ class WebsiteStreamer {
         
         // 等待页面上的特定元素出现
         try {
-            await page.waitForSelector('.chart-container', { timeout: 5000 });
+            await page.waitForSelector('.chart-container', { timeout: 3000 });
             console.log('Chart container found');
         } catch (error) {
             console.log('Could not find chart container, continuing anyway');
