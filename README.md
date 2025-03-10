@@ -22,7 +22,7 @@ docker run ghcr.io/your-username/website-livestream \
   <website-url> <youtube-stream-key>
 ```
 
-[View on GitHub Container Registry](https://github.com/your-username/website-livestream/pkgs/container/website-livestream)
+[View on GitHub Container Registry](https://github.com/JoeanSteinbock/website-livestream/pkgs/container/website-livestream)
 
 ## Features
 
