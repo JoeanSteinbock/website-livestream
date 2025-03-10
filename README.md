@@ -1,6 +1,28 @@
-# Website Live Streamer
+# Website Livestreamer
 
-A tool to livestream any website to YouTube.
+🎥 A Docker-based tool that captures any website and streams it directly to YouTube Live. Perfect for creating 24/7 live streams of web dashboards, charts, or any web content.
+
+## Key Features
+
+- 🐳 Fully Dockerized - easy to deploy and run
+- 🔄 Auto-retry mechanism for stable streaming
+- 🖥️ Cross-platform support (Linux & macOS)
+- 🎯 Configurable resolution and stream settings
+- 🛠️ Built with Puppeteer and FFmpeg
+
+## Live Example
+
+Check out our 24/7 cryptocurrency price tracking channel: [CryptoTick Live](https://www.youtube.com/@CryptoTickLive) - streaming real-time crypto charts and market data.
+
+## Quick Start
+
+```bash
+# Pull and run with Docker
+docker run ghcr.io/your-username/website-livestream \
+  <website-url> <youtube-stream-key>
+```
+
+[View on GitHub Container Registry](https://github.com/your-username/website-livestream/pkgs/container/website-livestream)
 
 ## Features
 
