@@ -158,11 +158,117 @@ class WebsiteStreamer {
 
         // 隐藏自动化控制条
         await page.evaluateOnNewDocument(() => {
+            // 阻止 Chrome 自动化通知
             Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
-            // 移除 "Chrome is being controlled by automated test software" 信息栏
+            
+            // 更彻底地修改 Chrome 属性
             if (window.chrome) {
-                window.chrome.app = { InstallState: 'hehe', RunningState: 'hehe' };
+                // 修改 Chrome 应用状态
+                window.chrome.app = {
+                    InstallState: 'hehe', 
+                    RunningState: 'hehe',
+                    getDetails: () => { return {}; },
+                    getIsInstalled: () => { return false; },
+                    installState: () => { return 'disabled'; }
+                };
+                
+                // 尝试覆盖 csi 函数
+                window.chrome.csi = () => { return {}; };
+                
+                // 尝试覆盖 runtime 函数
+                window.chrome.runtime = {
+                    ...window.chrome.runtime,
+                    sendMessage: () => { return {}; }
+                };
             }
+            
+            // 创建样式元素以隐藏自动化信息栏
+            const style = document.createElement('style');
+            style.textContent = `
+                .devtools-notification,
+                .infobar-wrapper,
+                .infobar-overlay,
+                .infobar,
+                div[role="infobar"],
+                div[style*="top: 0px; left: 0px; right: 0px; position: fixed;"],
+                .devtools-notification-main-frame,
+                div[class*="notification"],
+                div[id*="notification"],
+                div[data-notification] {
+                    display: none !important;
+                    visibility: hidden !important;
+                    opacity: 0 !important;
+                    pointer-events: none !important;
+                    height: 0 !important;
+                    max-height: 0 !important;
+                    overflow: hidden !important;
+                    position: absolute !important;
+                    top: -9999px !important;
+                    left: -9999px !important;
+                    z-index: -9999 !important;
+                }
+            `;
+            
+            // 预先添加样式，以便在页面加载前就生效
+            (document.head || document.documentElement).appendChild(style);
+            
+            // 创建一个 MutationObserver 以持续移除任何出现的通知
+            const observer = new MutationObserver((mutations) => {
+                mutations.forEach((mutation) => {
+                    if (mutation.addedNodes) {
+                        mutation.addedNodes.forEach((node) => {
+                            if (node.nodeType === 1) { // ELEMENT_NODE
+                                // 检查是否为通知元素
+                                if (
+                                    node.classList && (
+                                        node.classList.contains('devtools-notification') ||
+                                        node.classList.contains('infobar') ||
+                                        node.hasAttribute('role') && node.getAttribute('role') === 'infobar'
+                                    ) ||
+                                    node.id && (
+                                        node.id.includes('notification') ||
+                                        node.id.includes('infobar')
+                                    ) ||
+                                    node.style && node.style.position === 'fixed' && node.style.top === '0px'
+                                ) {
+                                    node.remove();
+                                }
+                            }
+                        });
+                    }
+                });
+            });
+            
+            // 开始观察整个文档的变化
+            observer.observe(document, { 
+                childList: true, 
+                subtree: true 
+            });
+        });
+
+        // 在页面加载后添加额外的样式
+        await page.addStyleTag({
+            content: `
+                /* 强制隐藏 Chrome 自动化通知 */
+                body::before {
+                    content: "";
+                    position: fixed;
+                    top: 0;
+                    left: 0;
+                    right: 0;
+                    height: 40px;  /* 覆盖通知条高度 */
+                    background-color: white;
+                    z-index: 2147483647;  /* 最高 z-index */
+                    display: block;
+                }
+                
+                /* 移整体向上移动，填补通知条留下的空间 */
+                body {
+                    margin-top: -40px !important;
+                    padding-top: 0 !important;
+                    overflow: hidden !important;
+                }
+            `
         });
 
         await page.setViewport({
