@@ -80,19 +80,13 @@ class WebsiteStreamer {
             this.xvfb = spawn('Xvfb', [
                 `:${displayNum}`,
                 '-screen', '0',
-                `${this.config.resolution.width}x${this.config.resolution.height}x24`,
+                `${this.config.resolution.width}x${this.config.resolution.height + 40}x24`,  // 增加高度
                 '-ac',           // 禁用访问控制
                 '-nolisten', 'tcp'  // 不监听 TCP 端口
             ]);
-            process.env.DISPLAY = `:${displayNum}`;
 
-            // 添加 Xvfb 日志
-            this.xvfb.stdout.on('data', (data) => {
-                console.log(`Xvfb stdout: ${data}`);
-            });
-            this.xvfb.stderr.on('data', (data) => {
-                console.log(`Xvfb stderr: ${data}`);
-            });
+            // 设置 DISPLAY 环境变量
+            process.env.DISPLAY = `:${displayNum}`;
 
             // 等待 Xvfb 启动并检查是否成功
             await new Promise((resolve, reject) => {
@@ -112,10 +106,19 @@ class WebsiteStreamer {
                     }
                 });
 
+                // 增加等待时间确保 Xvfb 完全启动
                 setTimeout(() => {
                     if (this.xvfb.exitCode === null) {
-                        console.log('Xvfb started successfully');
-                        resolve();
+                        // 验证显示器是否可用
+                        const testXvfb = spawn('xdpyinfo', ['-display', `:${displayNum}`]);
+                        testXvfb.on('close', (code) => {
+                            if (code === 0) {
+                                console.log('Xvfb started successfully');
+                                resolve();
+                            } else {
+                                reject(new Error('Xvfb started but display is not accessible'));
+                            }
+                        });
                     } else {
                         reject(new Error(`Xvfb failed to start: ${errorOutput}`));
                     }
@@ -128,6 +131,7 @@ class WebsiteStreamer {
         console.log('Starting browser...');
         this.browser = await puppeteer.launch({
             headless: false,
+            ignoreDefaultArgs: ["--enable-automation"],
             args: [
                 '--no-sandbox',
                 '--disable-setuid-sandbox',
@@ -147,7 +151,8 @@ class WebsiteStreamer {
                 '--disable-features=AudioServiceOutOfProcess', // 禁用音频服务进程外运行
                 '--user-agent=Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/96.0.4664.110 Safari/537.36'  // 自定义用户代理
             ],
-            defaultViewport: null
+            defaultViewport: null,
+            ignoreHTTPSErrors: true,
         });
 
         const page = await this.browser.newPage();
@@ -490,7 +495,7 @@ class WebsiteStreamer {
             '-framerate', '30',
             '-video_size', `${this.config.resolution.width}x${this.config.resolution.height + 40}`,
             '-draw_mouse', '0',
-            '-i', ':99.0',
+            '-i', `${process.env.DISPLAY}`,  // 使用环境变量中的显示器
             '-filter:v', `crop=${this.config.resolution.width}:${this.config.resolution.height}:0:40`,
             
             // 根据音频设置决定使用什么音频源
