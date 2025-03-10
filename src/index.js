@@ -47,11 +47,12 @@ class WebsiteStreamer {
     async setupBrowser() {
         console.log('Starting browser...');
         this.browser = await puppeteer.launch({
-            headless: false,
+            headless: 'new',
             args: [
                 '--no-sandbox',
                 '--disable-setuid-sandbox',
-                `--window-size=${this.config.resolution.width},${this.config.resolution.height}`
+                `--window-size=${this.config.resolution.width},${this.config.resolution.height}`,
+                '--disable-gpu'
             ],
             defaultViewport: this.config.resolution
         });
