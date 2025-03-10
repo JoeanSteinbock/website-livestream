@@ -46,6 +46,10 @@ class WebsiteStreamer {
         this.retryCount = 0;
         this.bgMusicPath = null; // 用于存储背景音乐的路径
         this.currentTrackIndex = null; // 跟踪当前播放的曲目索引
+        
+        // 每 4 小时重启一次流
+        this.restartInterval = parseInt(process.env.RESTART_INTERVAL || 4 * 60 * 60 * 1000);
+        this.restartTimer = null;
     }
 
     async start() {
@@ -54,6 +58,16 @@ class WebsiteStreamer {
             await this.setupBrowser();
             await this.startStreaming();
             this.setupCleanup();
+            
+            // 设置定期重启
+            if (this.restartInterval > 0) {
+                console.log(`Setting up automatic restart every ${this.restartInterval/1000/60/60} hours`);
+                this.restartTimer = setTimeout(async () => {
+                    console.log('Scheduled restart triggered');
+                    await this.cleanup();
+                    this.start();
+                }, this.restartInterval);
+            }
         } catch (error) {
             console.error('Error starting stream:', error);
             await this.handleError();
@@ -378,7 +392,7 @@ class WebsiteStreamer {
                     resolve(filePath);
                 });
             }).on('error', (err) => {
-                fs.unlink(filePath, () => { }); // 删除不完整的文件
+                fs.unlink(filePath, () => {}); // 删除不完整的文件
                 console.error(`Error downloading background music: ${err.message}`);
                 reject(err);
             });
@@ -439,6 +453,9 @@ class WebsiteStreamer {
             '-f', 'flv',
             '-flvflags', 'no_duration_filesize',
             '-threads', '4',
+            '-max_muxing_queue_size', '9999',
+            '-vsync', '1',
+            '-async', '1',
             `rtmp://a.rtmp.youtube.com/live2/${this.config.streamKey}`
         ] : [
             // Linux 配置
@@ -483,6 +500,9 @@ class WebsiteStreamer {
             '-probesize', '42M',
             '-analyzeduration', '5000000',
             '-fps_mode', 'cfr',  // 使用 fps_mode 代替已弃用的 vsync
+            '-max_muxing_queue_size', '9999',
+            '-vsync', '1',
+            '-async', '1',
             `rtmp://a.rtmp.youtube.com/live2/${this.config.streamKey}`
         ];
 
@@ -535,6 +555,12 @@ class WebsiteStreamer {
     }
 
     async cleanup() {
+        // 清除重启计时器
+        if (this.restartTimer) {
+            clearTimeout(this.restartTimer);
+            this.restartTimer = null;
+        }
+        
         // 清理临时音乐文件
         if (this.bgMusicPath && fs.existsSync(this.bgMusicPath)) {
             try {
