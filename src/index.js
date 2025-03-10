@@ -7,18 +7,18 @@ const https = require('https');
 
 // 背景音乐轨道列表
 const bgTracks = [
-  "https://cdn.pixabay.com/audio/2024/12/26/audio_5686c7b0c3.mp3",
-  "https://cdn.pixabay.com/audio/2025/02/06/audio_97edd31405.mp3",
-  "https://cdn.pixabay.com/audio/2024/12/01/audio_968fc36840.mp3",
-  "https://cdn.pixabay.com/audio/2024/11/05/audio_27b3644bf7.mp3",
-  "https://cdn.pixabay.com/audio/2022/03/29/audio_321d17982c.mp3",
-  "https://cdn.pixabay.com/audio/2025/03/05/audio_c359e40a3e.mp3",
-  "https://cdn.pixabay.com/audio/2024/11/24/audio_e1d4c85046.mp3",
-  "https://cdn.pixabay.com/audio/2024/04/11/audio_52d3ab883f.mp3",
-  "https://cdn.pixabay.com/audio/2021/12/05/audio_c548e46009.mp3",
-  "https://cdn.pixabay.com/audio/2023/04/13/audio_39b7d5ebea.mp3",
-  "https://cdn.pixabay.com/audio/2024/05/02/audio_0ec3e1300a.mp3",
-  "https://cdn.pixabay.com/audio/2024/07/23/audio_9196e2a1ac.mp3",
+    "https://cdn.pixabay.com/audio/2024/12/26/audio_5686c7b0c3.mp3",
+    "https://cdn.pixabay.com/audio/2025/02/06/audio_97edd31405.mp3",
+    "https://cdn.pixabay.com/audio/2024/12/01/audio_968fc36840.mp3",
+    "https://cdn.pixabay.com/audio/2024/11/05/audio_27b3644bf7.mp3",
+    "https://cdn.pixabay.com/audio/2022/03/29/audio_321d17982c.mp3",
+    "https://cdn.pixabay.com/audio/2025/03/05/audio_c359e40a3e.mp3",
+    "https://cdn.pixabay.com/audio/2024/11/24/audio_e1d4c85046.mp3",
+    "https://cdn.pixabay.com/audio/2024/04/11/audio_52d3ab883f.mp3",
+    "https://cdn.pixabay.com/audio/2021/12/05/audio_c548e46009.mp3",
+    "https://cdn.pixabay.com/audio/2023/04/13/audio_39b7d5ebea.mp3",
+    "https://cdn.pixabay.com/audio/2024/05/02/audio_0ec3e1300a.mp3",
+    "https://cdn.pixabay.com/audio/2024/07/23/audio_9196e2a1ac.mp3",
 ];
 
 let playedTracks = [];
@@ -35,9 +35,9 @@ class WebsiteStreamer {
             retryDelay: parseInt(process.env.RETRY_DELAY || 5000),
             maxRetries: parseInt(process.env.MAX_RETRIES || 3),
             isMac: os.platform() === 'darwin',
-            enableAudio: config.enableAudio !== undefined ? config.enableAudio : 
-                        (process.env.ENABLE_AUDIO !== undefined ? 
-                         process.env.ENABLE_AUDIO.toLowerCase() === 'true' : true)
+            enableAudio: config.enableAudio !== undefined ? config.enableAudio :
+                (process.env.ENABLE_AUDIO !== undefined ?
+                    process.env.ENABLE_AUDIO.toLowerCase() === 'true' : true)
         };
 
         this.browser = null;
@@ -63,9 +63,9 @@ class WebsiteStreamer {
     async setupDisplay() {
         if (!this.config.isMac) {
             console.log('Setting up virtual display...');
-            
+
             const displayNum = 99;
-            
+
             // 清理可能存在的锁文件和进程
             try {
                 spawn('pkill', ['-f', 'Xvfb']);
@@ -96,7 +96,7 @@ class WebsiteStreamer {
             // 等待 Xvfb 启动并检查是否成功
             await new Promise((resolve, reject) => {
                 let errorOutput = '';
-                
+
                 this.xvfb.stderr.on('data', (data) => {
                     errorOutput += data.toString();
                 });
@@ -145,7 +145,7 @@ class WebsiteStreamer {
                 '--disable-audio-output-engagement-rules',
                 '--disable-gesture-requirement-for-media',
                 '--disable-features=AudioServiceOutOfProcess',
-                '--user-agent=Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/96.0.4664.110 Safari/537.36'
+                '--user-agent=Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1'
             ],
             defaultViewport: null,
             ignoreHTTPSErrors: true
@@ -154,10 +154,23 @@ class WebsiteStreamer {
         const page = await this.browser.newPage();
         page.on('error', this.handleError.bind(this));
 
+        // 设置 iPhone 14 Pro Max 的设备模拟
+        await page.emulate({
+            viewport: {
+                width: 932,
+                height: 430,
+                deviceScaleFactor: 3,
+                isMobile: true,
+                hasTouch: true,
+                isLandscape: true
+            },
+            userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1'
+        });
+
         // 设置更长的超时时间
         page.setDefaultTimeout(60000);
         page.setDefaultNavigationTimeout(60000);
-        
+
         // 启用 JavaScript 控制台日志
         page.on('console', msg => console.log('Browser console:', msg.text()));
 
@@ -183,7 +196,7 @@ class WebsiteStreamer {
 
         // 等待页面完全渲染
         console.log('Waiting for page to render...');
-        
+
         // 等待页面上的特定元素出现
         try {
             await page.waitForSelector('.chart-container', { timeout: 3000 });
@@ -199,13 +212,13 @@ class WebsiteStreamer {
             await page.evaluate(() => {
                 // 尝试找到所有可能的音频控制按钮
                 const audioButtons = Array.from(document.querySelectorAll('button, .audio-control, [aria-label*="audio"], [aria-label*="sound"], [title*="audio"], [title*="sound"], .volume-control'));
-                
+
                 // 尝试点击找到的每个元素
                 for (const button of audioButtons) {
                     console.log('Clicking potential audio control:', button);
                     button.click();
                 }
-                
+
                 // 尝试自动播放页面上的所有媒体元素
                 document.querySelectorAll('video, audio').forEach(media => {
                     media.muted = false;
@@ -215,7 +228,7 @@ class WebsiteStreamer {
                         playPromise.catch(e => console.log('Media play failed:', e));
                     }
                 });
-                
+
                 // 模拟用户交互，以便浏览器允许自动播放
                 document.documentElement.click();
             });
@@ -227,15 +240,58 @@ class WebsiteStreamer {
         // 添加自定义 CSS 来优化显示效果
         await page.addStyleTag({
             content: `
-                /* 隐藏通知条 */
-                .devtools-notification {
+                /* 隐藏顶部工具栏 */
+                header, 
+                nav, 
+                .toolbar, 
+                .header, 
+                .nav-bar, 
+                .top-bar,
+                [role="banner"],
+                [class*="header"],
+                [class*="toolbar"],
+                [class*="nav-bar"],
+                [id*="header"],
+                [id*="toolbar"],
+                [id*="nav-bar"] {
                     display: none !important;
-                }
-                /* 移除不必要的空白和边距 */
-                body {
+                    height: 0 !important;
+                    opacity: 0 !important;
+                    visibility: hidden !important;
                     margin: 0 !important;
                     padding: 0 !important;
                     overflow: hidden !important;
+                }
+                
+                /* 确保内容区域占满整个屏幕 */
+                body, 
+                .main-content, 
+                .content, 
+                main, 
+                [role="main"],
+                [class*="content"],
+                [id*="content"] {
+                    margin-top: 0 !important;
+                    padding-top: 0 !important;
+                    height: 100vh !important;
+                    width: 100vw !important;
+                    max-height: 100vh !important;
+                    overflow: hidden !important;
+                }
+                
+                /* 隐藏底部工具栏或导航 */
+                footer,
+                .footer,
+                .bottom-bar,
+                [role="contentinfo"],
+                [class*="footer"],
+                [class*="bottom-bar"],
+                [id*="footer"],
+                [id*="bottom-bar"] {
+                    display: none !important;
+                    height: 0 !important;
+                    opacity: 0 !important;
+                    visibility: hidden !important;
                 }
             `
         });
@@ -249,7 +305,7 @@ class WebsiteStreamer {
                     requestAnimationFrame(() => {
                         window.scrollTo(0, 1);
                         window.scrollTo(0, 0);
-                        
+
                         // 移除所有的通知和信息栏元素
                         const notifications = document.querySelectorAll('.notification, .info-bar, .devtools-notification');
                         notifications.forEach(element => {
@@ -257,7 +313,7 @@ class WebsiteStreamer {
                                 element.parentNode.removeChild(element);
                             }
                         });
-                        
+
                         resolve();
                     });
                 });
@@ -276,36 +332,41 @@ class WebsiteStreamer {
         console.log('Screenshot saved to /tmp/page-screenshot.png');
 
         console.log('Page loaded and rendered, starting stream...');
+
+        // 模拟暗黑模式
+        await page.emulateMediaFeatures([
+            { name: 'prefers-color-scheme', value: 'dark' }
+        ]);
     }
 
     async downloadBackgroundTrack() {
         // 选择一个未播放过的背景音乐
         let availableTracks = bgTracks.filter((_, index) => !playedTracks.includes(index));
-        
+
         // 如果所有曲目都已播放过，则重置
         if (availableTracks.length === 0) {
             console.log('All tracks have been played, resetting play history');
             playedTracks = [];
             availableTracks = bgTracks;
         }
-        
+
         // 随机选择一个未播放的曲目
         const randomIndex = Math.floor(Math.random() * availableTracks.length);
         const selectedTrack = availableTracks[randomIndex];
-        
+
         // 找到所选曲目在原始数组中的索引
         const originalIndex = bgTracks.indexOf(selectedTrack);
         this.currentTrackIndex = originalIndex;
-        
+
         // 将此曲目添加到已播放列表中
         playedTracks.push(originalIndex);
-        
+
         console.log(`Downloading background music [${originalIndex + 1}/${bgTracks.length}]: ${selectedTrack}`);
-        
+
         const tempDir = '/tmp';
         const fileName = path.basename(selectedTrack);
         const filePath = path.join(tempDir, fileName);
-        
+
         return new Promise((resolve, reject) => {
             const file = fs.createWriteStream(filePath);
             https.get(selectedTrack, (response) => {
@@ -317,7 +378,7 @@ class WebsiteStreamer {
                     resolve(filePath);
                 });
             }).on('error', (err) => {
-                fs.unlink(filePath, () => {}); // 删除不完整的文件
+                fs.unlink(filePath, () => { }); // 删除不完整的文件
                 console.error(`Error downloading background music: ${err.message}`);
                 reject(err);
             });
@@ -326,7 +387,7 @@ class WebsiteStreamer {
 
     async startStreaming() {
         console.log('Starting FFmpeg stream...');
-        
+
         // 如果启用了音频，才下载背景音乐
         let bgMusicPath = null;
         if (this.config.enableAudio) {
@@ -339,7 +400,7 @@ class WebsiteStreamer {
         } else {
             console.log('Background audio is disabled');
         }
-        
+
         // 首先检查音频设备
         if (!this.config.isMac) {
             try {
@@ -354,7 +415,7 @@ class WebsiteStreamer {
                 console.error('Error checking PulseAudio sources:', error);
             }
         }
-        
+
         const ffmpegArgs = this.config.isMac ? [
             // macOS configuration
             '-f', 'avfoundation',
@@ -384,7 +445,7 @@ class WebsiteStreamer {
             '-video_size', `${this.config.resolution.width}x${this.config.resolution.height}`,
             '-draw_mouse', '0',
             '-i', ':99.0+0,0',
-            
+
             // 根据音频设置决定使用什么音频源
             ...(this.config.enableAudio && bgMusicPath ? [
                 '-stream_loop', '-1',
@@ -435,7 +496,7 @@ class WebsiteStreamer {
 
         console.log('Starting FFmpeg with args:', ffmpegArgs.join(' '));
         this.ffmpeg = spawn('ffmpeg', ffmpegArgs);
-        
+
         this.ffmpeg.stderr.on('data', (data) => {
             const message = data.toString();
             console.log(`FFmpeg: ${message}`);
@@ -480,7 +541,7 @@ class WebsiteStreamer {
                 console.error(`Failed to delete temporary music file: ${error}`);
             }
         }
-        
+
         if (this.browser) await this.browser.close();
         if (this.xvfb) this.xvfb.kill();
         if (this.ffmpeg) this.ffmpeg.kill();
