@@ -83,8 +83,7 @@ class WebsiteStreamer {
                 '-ac',
                 '-nolisten', 'tcp'
             ]);
-
-            process.env.DISPLAY = `:${displayNum}`;
+            process.env.DISPLAY = `:99`;  // 使用固定的显示器编号
 
             // 等待 Xvfb 启动
             await new Promise((resolve, reject) => {
@@ -488,7 +487,7 @@ class WebsiteStreamer {
             '-framerate', '30',
             '-video_size', `${this.config.resolution.width}x${this.config.resolution.height}`,
             '-draw_mouse', '0',
-            '-i', `${process.env.DISPLAY ?? ":99.0+0,0"}`,
+            '-i', ':99.0+0,0',  // 使用固定的格式
             
             // 根据音频设置决定使用什么音频源
             ...(this.config.enableAudio ? 
