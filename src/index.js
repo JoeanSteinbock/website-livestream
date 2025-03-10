@@ -29,8 +29,8 @@ class WebsiteStreamer {
             url: config.url || process.env.WEBSITE_URL || 'https://cryptotick.live/bitcoin?pm=true',
             streamKey: config.streamKey,
             resolution: {
-                width: parseInt(config.width || process.env.RESOLUTION_WIDTH || 900),
-                height: parseInt(config.height || process.env.RESOLUTION_HEIGHT || 506)
+                width: parseInt(config.width || process.env.RESOLUTION_WIDTH || 1280),
+                height: parseInt(config.height || process.env.RESOLUTION_HEIGHT || 720)
             },
             retryDelay: parseInt(process.env.RETRY_DELAY || 5000),
             maxRetries: parseInt(process.env.MAX_RETRIES || 3),
@@ -137,15 +137,15 @@ class WebsiteStreamer {
                 `--window-size=${this.config.resolution.width},${this.config.resolution.height}`,
                 '--start-maximized',
                 '--kiosk',
-                '--disable-infobars',  // 禁用信息栏
-                '--disable-notifications',  // 禁用通知
-                '--autoplay-policy=no-user-gesture-required',  // 允许自动播放
-                '--disable-web-security',                      // 禁用网页安全策略
-                '--allow-running-insecure-content',           // 允许不安全内容
-                '--disable-audio-output-engagement-rules',    // 禁用音频输出参与规则
-                '--disable-gesture-requirement-for-media',    // 禁用媒体手势要求
-                '--disable-features=AudioServiceOutOfProcess', // 禁用音频服务进程外运行
-                '--user-agent=Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/96.0.4664.110 Safari/537.36'  // 自定义用户代理
+                '--disable-infobars',
+                '--disable-notifications',
+                '--autoplay-policy=no-user-gesture-required',
+                '--disable-web-security',
+                '--allow-running-insecure-content',
+                '--disable-audio-output-engagement-rules',
+                '--disable-gesture-requirement-for-media',
+                '--disable-features=AudioServiceOutOfProcess',
+                '--user-agent=Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/96.0.4664.110 Safari/537.36'
             ],
             defaultViewport: null,
             ignoreHTTPSErrors: true
@@ -164,7 +164,6 @@ class WebsiteStreamer {
         // 隐藏自动化控制条
         await page.evaluateOnNewDocument(() => {
             Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
-            // 移除 "Chrome is being controlled by automated test software" 信息栏
             if (window.chrome) {
                 window.chrome.app = { InstallState: 'hehe', RunningState: 'hehe' };
             }
@@ -363,12 +362,12 @@ class WebsiteStreamer {
             '-i', '1:0',  // 1:0 表示第一个屏幕和第一个音频设备
             '-framerate', '30',
             '-c:v', 'libx264',
-            '-preset', 'ultrafast',
+            '-preset', 'veryfast',
             '-tune', 'zerolatency',
-            '-b:v', '6000k',
-            '-minrate', '3000k',
-            '-maxrate', '6000k',
-            '-bufsize', '12000k',
+            '-b:v', '4000k',
+            '-minrate', '2000k',
+            '-maxrate', '4000k',
+            '-bufsize', '8000k',
             '-pix_fmt', 'yuv420p',
             '-g', '60',
             '-keyint_min', '60',
@@ -387,33 +386,28 @@ class WebsiteStreamer {
             '-i', ':99.0+0,0',
             
             // 根据音频设置决定使用什么音频源
-            ...(this.config.enableAudio ? 
-                (bgMusicPath ? [
-                    '-stream_loop', '-1',
-                    '-i', bgMusicPath,
-                    '-c:v', 'libx264',
-                    '-c:a', 'aac',
-                    '-b:a', '128k',
-                    '-ar', '44100',
-                    '-shortest',
-                ] : [
-                    '-f', 'lavfi',
-                    '-i', 'anullsrc=r=44100:cl=stereo',
-                    '-c:v', 'libx264',
-                    '-c:a', 'aac',
-                    '-b:a', '128k',
-                    '-ar', '44100',
-                ]) : [
-                    '-an',
-                    '-c:v', 'libx264',
-                ]
-            ),
-            '-preset', 'ultrafast',
+            ...(this.config.enableAudio && bgMusicPath ? [
+                '-stream_loop', '-1',
+                '-i', bgMusicPath,
+                '-c:v', 'libx264',
+                '-c:a', 'aac',
+                '-b:a', '128k',
+                '-ar', '44100',
+                '-shortest',
+            ] : [
+                '-f', 'lavfi',
+                '-i', 'anullsrc=r=44100:cl=stereo',
+                '-c:v', 'libx264',
+                '-c:a', 'aac',
+                '-b:a', '128k',
+                '-ar', '44100',
+            ]),
+            '-preset', 'veryfast',
             '-tune', 'zerolatency',
-            '-b:v', '6000k',
-            '-minrate', '3000k',
-            '-maxrate', '6000k',
-            '-bufsize', '12000k',
+            '-b:v', '4000k',
+            '-minrate', '2000k',
+            '-maxrate', '4000k',
+            '-bufsize', '8000k',
             '-pix_fmt', 'yuv420p',
             '-g', '60',
             '-keyint_min', '60',
