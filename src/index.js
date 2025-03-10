@@ -180,6 +180,22 @@ class WebsiteStreamer {
 
     async startStreaming() {
         console.log('Starting FFmpeg stream...');
+        
+        // 首先检查音频设备
+        if (!this.config.isMac) {
+            try {
+                const pulseCheck = spawn('pacmd', ['list-sources']);
+                let pulseOutput = '';
+                pulseCheck.stdout.on('data', (data) => {
+                    pulseOutput += data.toString();
+                });
+                await new Promise((resolve) => pulseCheck.on('close', resolve));
+                console.log('Available PulseAudio sources:', pulseOutput);
+            } catch (error) {
+                console.error('Error checking PulseAudio sources:', error);
+            }
+        }
+        
         const ffmpegArgs = this.config.isMac ? [
             // macOS configuration
             '-f', 'avfoundation',
@@ -203,20 +219,20 @@ class WebsiteStreamer {
             '-threads', '4',
             `rtmp://a.rtmp.youtube.com/live2/${this.config.streamKey}`
         ] : [
-            // Linux configuration
+            // Linux 配置 - 仅捕获视频，暂时禁用音频
             '-f', 'x11grab',
             '-framerate', '30',
             '-video_size', `${this.config.resolution.width}x${this.config.resolution.height}`,
             '-draw_mouse', '0',
             '-i', ':99.0',
-            // 添加音频捕获
-            '-f', 'pulse',
-            '-ac', '2',
-            '-i', 'DummyOutput.monitor',  // 使用我们创建的虚拟设备
+            // 使用无声音频流替代
+            '-f', 'lavfi',
+            '-i', 'anullsrc=r=44100:cl=stereo',
             '-c:v', 'libx264',
             '-c:a', 'aac',
             '-b:a', '128k',
             '-ar', '44100',
+            '-shortest',  // 确保视频和音频同步结束
             '-preset', 'ultrafast',
             '-tune', 'zerolatency',
             '-b:v', '6000k',
@@ -233,8 +249,7 @@ class WebsiteStreamer {
             '-threads', '4',
             '-probesize', '42M',
             '-analyzeduration', '5000000',
-            '-vsync', '1',
-            '-copyts',
+            '-fps_mode', 'cfr',  // 使用 fps_mode 代替已弃用的 vsync
             `rtmp://a.rtmp.youtube.com/live2/${this.config.streamKey}`
         ];
 
@@ -242,7 +257,7 @@ class WebsiteStreamer {
         try {
             const versionCheck = spawn('ffmpeg', ['-version']);
             versionCheck.stdout.on('data', (data) => {
-                console.log('FFmpeg version info:', data.toString());
+                console.log('FFmpeg version info:', data.toString().split('\n')[0]);  // 只显示第一行
             });
             await new Promise((resolve) => versionCheck.on('close', resolve));
         } catch (error) {
