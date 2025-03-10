@@ -7,28 +7,28 @@ RUN apk add --no-cache \
     xvfb \
     ca-certificates
 
-# Create app directory and user
-RUN mkdir -p /home/node/app && chown -R node:node /home/node/app
-WORKDIR /home/node/app
+# Create app directory
+WORKDIR /app
 
-# Switch to non-root user
-USER node
-
-# Copy package files with correct ownership
-COPY --chown=node:node package*.json ./
+# Copy package files
+COPY package*.json ./
 
 # Install dependencies
 RUN npm install
 
-# Copy source code with correct ownership
-COPY --chown=node:node . .
+# Copy source code
+COPY . .
 
 # Set environment variables
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
     PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
 
-# Create entrypoint script
-RUN echo '#!/bin/sh\nxvfb-run --server-args="-screen 0 1280x720x24" node src/index.js "$@"' > entrypoint.sh \
-    && chmod +x entrypoint.sh
+# Create entrypoint script before switching user
+RUN echo '#!/bin/sh\nxvfb-run --server-args="-screen 0 1280x720x24" node src/index.js "$@"' > /entrypoint.sh && \
+    chmod +x /entrypoint.sh && \
+    chown node:node /entrypoint.sh
 
-ENTRYPOINT ["./entrypoint.sh"]
+# Switch to non-root user
+USER node
+
+ENTRYPOINT ["/entrypoint.sh"]
