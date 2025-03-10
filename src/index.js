@@ -80,7 +80,7 @@ class WebsiteStreamer {
             this.xvfb = spawn('Xvfb', [
                 `:${displayNum}`,
                 '-screen', '0',
-                `${this.config.resolution.width}x${this.config.resolution.height + 40}x24`,
+                `${this.config.resolution.width}x${this.config.resolution.height}x24`,
                 '-ac',
                 '-nolisten', 'tcp'
             ]);
@@ -489,9 +489,9 @@ class WebsiteStreamer {
             // Linux 配置
             '-f', 'x11grab',
             '-framerate', '30',
-            '-video_size', `${this.config.resolution.width}x${this.config.resolution.height + 40}`,
+            '-video_size', `${this.config.resolution.width}x${this.config.resolution.height}`,
             '-draw_mouse', '0',
-            '-i', `${process.env.DISPLAY}`,  // 使用环境变量中的显示器
+            '-i', `${process.env.DISPLAY}`,
             '-filter:v', `crop=${this.config.resolution.width}:${this.config.resolution.height}:0:40`,
             
             // 根据音频设置决定使用什么音频源
