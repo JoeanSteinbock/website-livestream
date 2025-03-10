@@ -64,7 +64,6 @@ class WebsiteStreamer {
         if (!this.config.isMac) {
             console.log('Setting up virtual display...');
             
-            // 使用固定的显示器编号
             const displayNum = 99;
             
             // 清理可能存在的锁文件和进程
@@ -81,14 +80,20 @@ class WebsiteStreamer {
                 `:${displayNum}`,
                 '-screen', '0',
                 `${this.config.resolution.width}x${this.config.resolution.height}x24`,
-                '-ac',
-                '-nolisten', 'tcp'
+                '-ac',           // 禁用访问控制
+                '-nolisten', 'tcp'  // 不监听 TCP 端口
             ]);
-            
-            // 设置环境变量
             process.env.DISPLAY = `:${displayNum}`;
 
-            // 等待 Xvfb 启动
+            // 添加 Xvfb 日志
+            this.xvfb.stdout.on('data', (data) => {
+                console.log(`Xvfb stdout: ${data}`);
+            });
+            this.xvfb.stderr.on('data', (data) => {
+                console.log(`Xvfb stderr: ${data}`);
+            });
+
+            // 等待 Xvfb 启动并检查是否成功
             await new Promise((resolve, reject) => {
                 let errorOutput = '';
                 
@@ -108,13 +113,8 @@ class WebsiteStreamer {
 
                 setTimeout(() => {
                     if (this.xvfb.exitCode === null) {
-                        // 检查 X11 socket 文件是否存在
-                        if (fs.existsSync(`/tmp/.X11-unix/X${displayNum}`)) {
-                            console.log('Xvfb started successfully');
-                            resolve();
-                        } else {
-                            reject(new Error('Xvfb socket file not found'));
-                        }
+                        console.log('Xvfb started successfully');
+                        resolve();
                     } else {
                         reject(new Error(`Xvfb failed to start: ${errorOutput}`));
                     }
@@ -137,15 +137,15 @@ class WebsiteStreamer {
                 `--window-size=${this.config.resolution.width},${this.config.resolution.height}`,
                 '--start-maximized',
                 '--kiosk',
-                '--disable-infobars',
-                '--disable-notifications',
-                '--autoplay-policy=no-user-gesture-required',
-                '--disable-web-security',
-                '--allow-running-insecure-content',
-                '--disable-audio-output-engagement-rules',
-                '--disable-gesture-requirement-for-media',
-                '--disable-features=AudioServiceOutOfProcess',
-                '--user-agent=Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/96.0.4664.110 Safari/537.36'
+                '--disable-infobars',  // 禁用信息栏
+                '--disable-notifications',  // 禁用通知
+                '--autoplay-policy=no-user-gesture-required',  // 允许自动播放
+                '--disable-web-security',                      // 禁用网页安全策略
+                '--allow-running-insecure-content',           // 允许不安全内容
+                '--disable-audio-output-engagement-rules',    // 禁用音频输出参与规则
+                '--disable-gesture-requirement-for-media',    // 禁用媒体手势要求
+                '--disable-features=AudioServiceOutOfProcess', // 禁用音频服务进程外运行
+                '--user-agent=Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/96.0.4664.110 Safari/537.36'  // 自定义用户代理
             ],
             defaultViewport: null,
             ignoreHTTPSErrors: true
@@ -161,117 +161,13 @@ class WebsiteStreamer {
         // 启用 JavaScript 控制台日志
         page.on('console', msg => console.log('Browser console:', msg.text()));
 
-        // 简化的自动化通知处理
+        // 隐藏自动化控制条
         await page.evaluateOnNewDocument(() => {
-            // 阻止 Chrome 自动化通知
             Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
+            // 移除 "Chrome is being controlled by automated test software" 信息栏
             if (window.chrome) {
-                // 修改 Chrome 应用状态
-                window.chrome.app = {
-                    InstallState: 'hehe', 
-                    RunningState: 'hehe',
-                    getDetails: () => { return {}; },
-                    getIsInstalled: () => { return false; },
-                    installState: () => { return 'disabled'; }
-                };
-                
-                // 尝试覆盖 csi 函数
-                window.chrome.csi = () => { return {}; };
-                
-                // 尝试覆盖 runtime 函数
-                window.chrome.runtime = {
-                    ...window.chrome.runtime,
-                    sendMessage: () => { return {}; }
-                };
+                window.chrome.app = { InstallState: 'hehe', RunningState: 'hehe' };
             }
-            
-            // 创建样式元素以隐藏自动化信息栏
-            const style = document.createElement('style');
-            style.textContent = `
-                .devtools-notification,
-                .infobar-wrapper,
-                .infobar-overlay,
-                .infobar,
-                div[role="infobar"],
-                div[style*="top: 0px; left: 0px; right: 0px; position: fixed;"],
-                .devtools-notification-main-frame,
-                div[class*="notification"],
-                div[id*="notification"],
-                div[data-notification] {
-                    display: none !important;
-                    visibility: hidden !important;
-                    opacity: 0 !important;
-                    pointer-events: none !important;
-                    height: 0 !important;
-                    max-height: 0 !important;
-                    overflow: hidden !important;
-                    position: absolute !important;
-                    top: -9999px !important;
-                    left: -9999px !important;
-                    z-index: -9999 !important;
-                }
-            `;
-            
-            // 预先添加样式，以便在页面加载前就生效
-            (document.head || document.documentElement).appendChild(style);
-            
-            // 创建一个 MutationObserver 以持续移除任何出现的通知
-            const observer = new MutationObserver((mutations) => {
-                mutations.forEach((mutation) => {
-                    if (mutation.addedNodes) {
-                        mutation.addedNodes.forEach((node) => {
-                            if (node.nodeType === 1) { // ELEMENT_NODE
-                                // 检查是否为通知元素
-                                if (
-                                    node.classList && (
-                                        node.classList.contains('devtools-notification') ||
-                                        node.classList.contains('infobar') ||
-                                        node.hasAttribute('role') && node.getAttribute('role') === 'infobar'
-                                    ) ||
-                                    node.id && (
-                                        node.id.includes('notification') ||
-                                        node.id.includes('infobar')
-                                    ) ||
-                                    node.style && node.style.position === 'fixed' && node.style.top === '0px'
-                                ) {
-                                    node.remove();
-                                }
-                            }
-                        });
-                    }
-                });
-            });
-            
-            // 开始观察整个文档的变化
-            observer.observe(document, { 
-                childList: true, 
-                subtree: true 
-            });
-        });
-
-        // 在页面加载后添加额外的样式
-        await page.addStyleTag({
-            content: `
-                /* 强制隐藏 Chrome 自动化通知 */
-                body::before {
-                    content: "";
-                    position: fixed;
-                    top: 0;
-                    left: 0;
-                    right: 0;
-                    height: 40px;  /* 覆盖通知条高度 */
-                    background-color: white;
-                    z-index: 2147483647;  /* 最高 z-index */
-                    display: block;
-                }
-                
-                /* 移整体向上移动，填补通知条留下的空间 */
-                body {
-                    margin-top: -40px !important;
-                    padding-top: 0 !important;
-                    overflow: hidden !important;
-                }
-            `
         });
 
         await page.setViewport({
@@ -407,27 +303,6 @@ class WebsiteStreamer {
         
         console.log(`Downloading background music [${originalIndex + 1}/${bgTracks.length}]: ${selectedTrack}`);
         
-        // 如果所有曲目都已播放过，则重置
-        if (availableTracks.length === 0) {
-            console.log('All tracks have been played, resetting play history');
-            playedTracks = [];
-            availableTracks = bgTracks;
-        }
-        
-        // 随机选择一个未播放的曲目
-        const randomIndex = Math.floor(Math.random() * availableTracks.length);
-        const selectedTrack = availableTracks[randomIndex];
-        
-        // 找到所选曲目在原始数组中的索引
-        const originalIndex = bgTracks.indexOf(selectedTrack);
-        this.currentTrackIndex = originalIndex;
-        
-        // 将此曲目添加到已播放列表中
-        playedTracks.push(originalIndex);
-        
-        console.log(`Downloading background music [${originalIndex + 1}/${bgTracks.length}]: ${selectedTrack}`);
-        
-        // 下载逻辑保持不变
         const tempDir = '/tmp';
         const fileName = path.basename(selectedTrack);
         const filePath = path.join(tempDir, fileName);
@@ -509,12 +384,12 @@ class WebsiteStreamer {
             '-framerate', '30',
             '-video_size', `${this.config.resolution.width}x${this.config.resolution.height}`,
             '-draw_mouse', '0',
-            '-i', ':99.0+0,0',  // 使用固定的格式
+            '-i', ':99.0+0,0',
             
             // 根据音频设置决定使用什么音频源
             ...(this.config.enableAudio ? 
                 (bgMusicPath ? [
-                    '-stream_loop', '-1',
+                    '-stream_loop', '-1',  // 循环播放音频
                     '-i', bgMusicPath,
                     '-c:v', 'libx264',
                     '-c:a', 'aac',
@@ -522,6 +397,7 @@ class WebsiteStreamer {
                     '-ar', '44100',
                     '-shortest',
                 ] : [
+                    // 如果没有背景音乐，则使用无声音频
                     '-f', 'lavfi',
                     '-i', 'anullsrc=r=44100:cl=stereo',
                     '-c:v', 'libx264',
@@ -529,7 +405,8 @@ class WebsiteStreamer {
                     '-b:a', '128k',
                     '-ar', '44100',
                 ]) : [
-                    '-an',
+                    // 完全禁用音频
+                    '-an',  // 禁用音频
                     '-c:v', 'libx264',
                 ]
             ),
