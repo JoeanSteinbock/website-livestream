@@ -1,0 +1,15 @@
+{
+  "name": "website-livestream",
+  "version": "1.0.0",
+  "description": "Live stream any website to YouTube",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js"
+  },
+  "keywords": ["livestream", "youtube", "puppeteer"],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "puppeteer": "^21.0.0"
+  }
+}
