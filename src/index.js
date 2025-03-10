@@ -51,14 +51,24 @@ class WebsiteStreamer {
             args: [
                 '--no-sandbox',
                 '--disable-setuid-sandbox',
-                `--window-size=${this.config.resolution.width},${this.config.resolution.height}`,
                 '--disable-gpu'
             ],
-            defaultViewport: this.config.resolution
+            defaultViewport: {
+                width: this.config.resolution.width,
+                height: this.config.resolution.height,
+                deviceScaleFactor: 1
+            }
         });
 
         const page = await this.browser.newPage();
         page.on('error', this.handleError.bind(this));
+
+        // 设置页面视口大小
+        await page.setViewport({
+            width: this.config.resolution.width,
+            height: this.config.resolution.height,
+            deviceScaleFactor: 1
+        });
 
         console.log(`Navigating to ${this.config.url}...`);
         await page.goto(this.config.url, {
@@ -76,11 +86,12 @@ class WebsiteStreamer {
             '-framerate', '30',
             '-c:v', 'libx264',
             '-preset', 'veryfast',
-            '-b:v', '6000k',
-            '-maxrate', '6000k',
-            '-bufsize', '12000k',
+            '-b:v', '2500k',
+            '-maxrate', '4000k',
+            '-bufsize', '8000k',
             '-pix_fmt', 'yuv420p',
-            '-g', '50',
+            '-g', '60',
+            '-x264-params', 'keyint=60:min-keyint=60',
             '-f', 'flv',
             `rtmp://a.rtmp.youtube.com/live2/${this.config.streamKey}`
         ] : [
@@ -90,11 +101,12 @@ class WebsiteStreamer {
             '-i', ':99',
             '-c:v', 'libx264',
             '-preset', 'veryfast',
-            '-b:v', '6000k',
-            '-maxrate', '6000k',
-            '-bufsize', '12000k',
+            '-b:v', '2500k',
+            '-maxrate', '4000k',
+            '-bufsize', '8000k',
             '-pix_fmt', 'yuv420p',
-            '-g', '50',
+            '-g', '60',
+            '-x264-params', 'keyint=60:min-keyint=60',
             '-f', 'flv',
             `rtmp://a.rtmp.youtube.com/live2/${this.config.streamKey}`
         ];
