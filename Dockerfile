@@ -28,6 +28,7 @@ ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
 
 # Create entrypoint script before switching user
 RUN echo '#!/bin/sh' > /entrypoint.sh && \
+    echo 'rm -f /tmp/.X99-lock /tmp/.X11-unix/X99 2>/dev/null || true' >> /entrypoint.sh && \
     echo 'xvfb-run --server-args="-screen 0 1280x720x24" node src/index.js "$@"' >> /entrypoint.sh && \
     chmod +x /entrypoint.sh
 

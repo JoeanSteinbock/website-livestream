@@ -36,10 +36,20 @@ class WebsiteStreamer {
 
     async setupDisplay() {
         if (!this.config.isMac) {
+            console.log('Setting up virtual display...');
+            
+            // 清理可能存在的锁文件
+            const displayNum = 99;
+            try {
+                spawn('rm', ['-f', `/tmp/.X${displayNum}-lock`, `/tmp/.X11-unix/X${displayNum}`]);
+            } catch (error) {
+                console.log('No lock files to clean up');
+            }
+
             console.log('Starting Xvfb...');
-            this.xvfb = spawn('Xvfb', [':99', '-screen', '0',
+            this.xvfb = spawn('Xvfb', [`:${displayNum}`, '-screen', '0',
                 `${this.config.resolution.width}x${this.config.resolution.height}x24`]);
-            process.env.DISPLAY = ':99';
+            process.env.DISPLAY = `:${displayNum}`;
 
             // 添加 Xvfb 日志
             this.xvfb.stdout.on('data', (data) => {
@@ -49,9 +59,17 @@ class WebsiteStreamer {
                 console.log(`Xvfb stderr: ${data}`);
             });
 
-            // 等待 Xvfb 启动
-            await new Promise(resolve => setTimeout(resolve, 2000));
-            console.log('Xvfb should be ready');
+            // 等待 Xvfb 启动并检查是否成功
+            await new Promise((resolve, reject) => {
+                setTimeout(() => {
+                    if (this.xvfb.exitCode === null) {
+                        console.log('Xvfb started successfully');
+                        resolve();
+                    } else {
+                        reject(new Error('Xvfb failed to start'));
+                    }
+                }, 2000);
+            });
         }
     }
 
