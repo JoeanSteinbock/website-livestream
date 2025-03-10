@@ -389,7 +389,7 @@ class WebsiteStreamer {
             // 根据音频设置决定使用什么音频源
             ...(this.config.enableAudio ? 
                 (bgMusicPath ? [
-                    '-stream_loop', '-1',  // 循环播放音频
+                    '-stream_loop', '-1',
                     '-i', bgMusicPath,
                     '-c:v', 'libx264',
                     '-c:a', 'aac',
@@ -397,7 +397,6 @@ class WebsiteStreamer {
                     '-ar', '44100',
                     '-shortest',
                 ] : [
-                    // 如果没有背景音乐，则使用无声音频
                     '-f', 'lavfi',
                     '-i', 'anullsrc=r=44100:cl=stereo',
                     '-c:v', 'libx264',
@@ -405,8 +404,7 @@ class WebsiteStreamer {
                     '-b:a', '128k',
                     '-ar', '44100',
                 ]) : [
-                    // 完全禁用音频
-                    '-an',  // 禁用音频
+                    '-an',
                     '-c:v', 'libx264',
                 ]
             ),
@@ -506,25 +504,6 @@ class WebsiteStreamer {
             await this.cleanup();
             process.exit();
         });
-    }
-
-    async debugXvfbDisplay() {
-        if (!this.config.isMac) {
-            console.log('Taking Xvfb screenshot for debugging...');
-            try {
-                // 使用 xwd 工具捕获 Xvfb 屏幕
-                const xwdProcess = spawn('xwd', ['-root', '-display', ':99', '-out', '/tmp/xvfb-screen.xwd']);
-                await new Promise((resolve) => xwdProcess.on('close', resolve));
-                
-                // 转换为 PNG 格式
-                const convertProcess = spawn('convert', ['/tmp/xvfb-screen.xwd', '/tmp/xvfb-screen.png']);
-                await new Promise((resolve) => convertProcess.on('close', resolve));
-                
-                console.log('Xvfb screenshot saved to /tmp/xvfb-screen.png');
-            } catch (error) {
-                console.error('Failed to capture Xvfb screenshot:', error);
-            }
-        }
     }
 }
 
