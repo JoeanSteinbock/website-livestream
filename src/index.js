@@ -106,6 +106,7 @@ class WebsiteStreamer {
                 '--disable-setuid-sandbox',
                 '--disable-gpu',
                 '--disable-dev-shm-usage',
+                '--disable-web-security',  // 添加这个以处理可能的 CORS 问题
                 `--window-size=${this.config.resolution.width},${this.config.resolution.height}`
             ],
             defaultViewport: {
@@ -117,6 +118,13 @@ class WebsiteStreamer {
 
         const page = await this.browser.newPage();
         page.on('error', this.handleError.bind(this));
+
+        // 设置更长的超时时间
+        page.setDefaultTimeout(60000);
+        page.setDefaultNavigationTimeout(60000);
+
+        // 启用 JavaScript 控制台日志
+        page.on('console', msg => console.log('Browser console:', msg.text()));
 
         await page.setViewport({
             width: this.config.resolution.width,
@@ -132,14 +140,41 @@ class WebsiteStreamer {
 
         // 等待页面完全渲染
         console.log('Waiting for page to render...');
-        await page.evaluate(() => new Promise(resolve => {
-            requestAnimationFrame(() => {
-                requestAnimationFrame(resolve);
+        
+        // 等待页面上的特定元素出现
+        try {
+            await page.waitForSelector('.chart-container', { timeout: 30000 });
+            console.log('Chart container found');
+        } catch (error) {
+            console.log('Could not find chart container, continuing anyway');
+        }
+
+        // 注入一些 JavaScript 来触发重绘
+        await page.evaluate(() => {
+            return new Promise(resolve => {
+                document.body.style.zoom = 1.001;
+                requestAnimationFrame(() => {
+                    document.body.style.zoom = 1;
+                    requestAnimationFrame(() => {
+                        window.scrollTo(0, 1);
+                        window.scrollTo(0, 0);
+                        resolve();
+                    });
+                });
             });
-        }));
+        });
 
         // 等待额外时间确保页面完全渲染
-        await new Promise(resolve => setTimeout(resolve, 5000));
+        await new Promise(resolve => setTimeout(resolve, 10000));
+
+        // 截取屏幕截图
+        console.log('Taking screenshot to verify rendering...');
+        await page.screenshot({
+            path: '/tmp/page-screenshot.png',
+            fullPage: true
+        });
+        console.log('Screenshot saved to /tmp/page-screenshot.png');
+
         console.log('Page loaded and rendered, starting stream...');
     }
 
