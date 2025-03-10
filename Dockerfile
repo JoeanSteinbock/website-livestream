@@ -25,6 +25,10 @@ COPY . .
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
     PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
 
+# Create necessary directories and set permissions
+RUN mkdir -p /tmp/.X11-unix && \
+    chmod 1777 /tmp/.X11-unix
+
 # Create entrypoint script before switching user
 RUN echo '#!/bin/sh' > /entrypoint.sh && \
     echo 'rm -f /tmp/.X99-lock /tmp/.X11-unix/X99 2>/dev/null || true' >> /entrypoint.sh && \
