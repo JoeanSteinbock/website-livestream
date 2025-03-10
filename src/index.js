@@ -100,7 +100,7 @@ class WebsiteStreamer {
     async setupBrowser() {
         console.log('Starting browser...');
         this.browser = await puppeteer.launch({
-            headless: false,  // 改为非无头模式，在虚拟显示器上显示
+            headless: false,
             args: [
                 '--no-sandbox',
                 '--disable-setuid-sandbox',
@@ -108,10 +108,13 @@ class WebsiteStreamer {
                 '--disable-dev-shm-usage',
                 '--disable-web-security',
                 `--window-size=${this.config.resolution.width},${this.config.resolution.height}`,
-                '--start-maximized',  // 确保窗口最大化
-                '--kiosk'  // 使用全屏模式
+                '--start-maximized',
+                '--kiosk',
+                '--disable-infobars',  // 禁用信息栏
+                '--disable-notifications',  // 禁用通知
+                '--user-agent=Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/96.0.4664.110 Safari/537.36'  // 自定义用户代理
             ],
-            defaultViewport: null  // 不设置默认视口，让浏览器使用窗口大小
+            defaultViewport: null
         });
 
         const page = await this.browser.newPage();
@@ -120,9 +123,18 @@ class WebsiteStreamer {
         // 设置更长的超时时间
         page.setDefaultTimeout(60000);
         page.setDefaultNavigationTimeout(60000);
-
+        
         // 启用 JavaScript 控制台日志
         page.on('console', msg => console.log('Browser console:', msg.text()));
+
+        // 隐藏自动化控制条
+        await page.evaluateOnNewDocument(() => {
+            Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
+            // 移除 "Chrome is being controlled by automated test software" 信息栏
+            if (window.chrome) {
+                window.chrome.app = { InstallState: 'hehe', RunningState: 'hehe' };
+            }
+        });
 
         await page.setViewport({
             width: this.config.resolution.width,
@@ -147,6 +159,54 @@ class WebsiteStreamer {
             console.log('Could not find chart container, continuing anyway');
         }
 
+        // 尝试启用网站音频
+        console.log('Attempting to enable website audio...');
+        try {
+            // 尝试查找并点击音频控制元素（根据网站具体情况调整选择器）
+            await page.evaluate(() => {
+                // 尝试找到所有可能的音频控制按钮
+                const audioButtons = Array.from(document.querySelectorAll('button, .audio-control, [aria-label*="audio"], [aria-label*="sound"], [title*="audio"], [title*="sound"], .volume-control'));
+                
+                // 尝试点击找到的每个元素
+                for (const button of audioButtons) {
+                    console.log('Clicking potential audio control:', button);
+                    button.click();
+                }
+                
+                // 尝试自动播放页面上的所有媒体元素
+                document.querySelectorAll('video, audio').forEach(media => {
+                    media.muted = false;
+                    media.volume = 1.0;
+                    const playPromise = media.play();
+                    if (playPromise !== undefined) {
+                        playPromise.catch(e => console.log('Media play failed:', e));
+                    }
+                });
+                
+                // 模拟用户交互，以便浏览器允许自动播放
+                document.documentElement.click();
+            });
+            console.log('Audio enable attempt completed');
+        } catch (error) {
+            console.log('Failed to enable website audio, will use synthetic audio:', error);
+        }
+
+        // 添加自定义 CSS 来优化显示效果
+        await page.addStyleTag({
+            content: `
+                /* 隐藏通知条 */
+                .devtools-notification {
+                    display: none !important;
+                }
+                /* 移除不必要的空白和边距 */
+                body {
+                    margin: 0 !important;
+                    padding: 0 !important;
+                    overflow: hidden !important;
+                }
+            `
+        });
+
         // 注入一些 JavaScript 来触发重绘
         await page.evaluate(() => {
             return new Promise(resolve => {
@@ -156,6 +216,15 @@ class WebsiteStreamer {
                     requestAnimationFrame(() => {
                         window.scrollTo(0, 1);
                         window.scrollTo(0, 0);
+                        
+                        // 移除所有的通知和信息栏元素
+                        const notifications = document.querySelectorAll('.notification, .info-bar, .devtools-notification');
+                        notifications.forEach(element => {
+                            if (element && element.parentNode) {
+                                element.parentNode.removeChild(element);
+                            }
+                        });
+                        
                         resolve();
                     });
                 });
@@ -222,15 +291,15 @@ class WebsiteStreamer {
             '-framerate', '30',
             '-video_size', `${this.config.resolution.width}x${this.config.resolution.height}`,
             '-draw_mouse', '0',
-            '-i', ':99.0+0,0',  // 添加偏移量 +0,0 明确指定捕获区域
-            // 使用无声音频流替代
-            '-f', 'lavfi',
-            '-i', 'anullsrc=r=44100:cl=stereo',
+            '-i', ':99.0+0,0',
+            // 尝试从 PulseAudio 获取系统音频
+            '-f', 'pulse',
+            '-i', 'DummyOutput.monitor',  // 使用之前设置的虚拟音频输出
             '-c:v', 'libx264',
             '-c:a', 'aac',
             '-b:a', '128k',
             '-ar', '44100',
-            '-shortest',  // 确保视频和音频同步结束
+            '-shortest',
             '-preset', 'ultrafast',
             '-tune', 'zerolatency',
             '-b:v', '6000k',
