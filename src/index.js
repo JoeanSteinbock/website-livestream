@@ -293,7 +293,7 @@ class WebsiteStreamer {
         
         // 等待页面上的特定元素出现
         try {
-            await page.waitForSelector('.chart-container', { timeout: 30000 });
+            await page.waitForSelector('.chart-container', { timeout: 5000 });
             console.log('Chart container found');
         } catch (error) {
             console.log('Could not find chart container, continuing anyway');
