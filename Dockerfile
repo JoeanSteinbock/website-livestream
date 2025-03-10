@@ -1,6 +1,6 @@
 FROM node:22-alpine
 
-LABEL org.opencontainers.image.description="A tool to livestream any website to YouTube. Perfect for creating 24/7 live streams of web dashboards, charts, or any web content."
+LABEL org.opencontainers.image.description "A tool to livestream any website to YouTube. Perfect for creating 24/7 live streams of web dashboards, charts, or any web content."
 
 # Install dependencies
 RUN apk add --no-cache \
