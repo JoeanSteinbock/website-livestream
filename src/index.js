@@ -5,7 +5,7 @@ const os = require('os');
 class WebsiteStreamer {
     constructor(config) {
         this.config = {
-            url: config.url || process.env.WEBSITE_URL || 'https://example.com',
+            url: config.url || process.env.WEBSITE_URL || 'https://cryptotick.live/bitcoin?pm=true',
             streamKey: config.streamKey,
             resolution: {
                 width: parseInt(config.width || process.env.RESOLUTION_WIDTH || 1280),
@@ -15,7 +15,7 @@ class WebsiteStreamer {
             maxRetries: parseInt(process.env.MAX_RETRIES || 3),
             isMac: os.platform() === 'darwin'
         };
-        
+
         this.browser = null;
         this.ffmpeg = null;
         this.xvfb = null;
@@ -37,7 +37,7 @@ class WebsiteStreamer {
     async setupDisplay() {
         if (!this.config.isMac) {
             console.log('Starting Xvfb...');
-            this.xvfb = spawn('Xvfb', [':99', '-screen', '0', 
+            this.xvfb = spawn('Xvfb', [':99', '-screen', '0',
                 `${this.config.resolution.width}x${this.config.resolution.height}x24`]);
             process.env.DISPLAY = ':99';
             await new Promise(resolve => setTimeout(resolve, 1000));
@@ -106,7 +106,7 @@ class WebsiteStreamer {
     async handleError() {
         if (this.retryCount < this.config.maxRetries) {
             this.retryCount++;
-            console.log(`Retrying (${this.retryCount}/${this.config.maxRetries}) in ${this.config.retryDelay/1000} seconds...`);
+            console.log(`Retrying (${this.retryCount}/${this.config.maxRetries}) in ${this.config.retryDelay / 1000} seconds...`);
             await this.cleanup();
             setTimeout(() => this.start(), this.config.retryDelay);
         } else {
