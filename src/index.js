@@ -184,7 +184,7 @@ class WebsiteStreamer {
             // macOS configuration
             '-f', 'avfoundation',
             '-capture_cursor', '1',
-            '-i', '1:none',
+            '-i', '1:0',  // 1:0 表示第一个屏幕和第一个音频设备
             '-framerate', '30',
             '-c:v', 'libx264',
             '-preset', 'ultrafast',
@@ -203,13 +203,20 @@ class WebsiteStreamer {
             '-threads', '4',
             `rtmp://a.rtmp.youtube.com/live2/${this.config.streamKey}`
         ] : [
-            // Linux configuration (using x11grab)
+            // Linux configuration
             '-f', 'x11grab',
             '-framerate', '30',
             '-video_size', `${this.config.resolution.width}x${this.config.resolution.height}`,
             '-draw_mouse', '0',
             '-i', ':99.0',
-            '-c:v', 'libx264',
+            // 添加音频捕获
+            '-f', 'pulse',
+            '-ac', '2',            // 2 个音频通道（立体声）
+            '-i', 'default',       // 使用默认音频设备
+            '-c:v', 'libx264',     // 视频编码器
+            '-c:a', 'aac',         // 音频编码器
+            '-b:a', '128k',        // 音频比特率
+            '-ar', '44100',        // 音频采样率
             '-preset', 'ultrafast',
             '-tune', 'zerolatency',
             '-b:v', '6000k',
