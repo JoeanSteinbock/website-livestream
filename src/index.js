@@ -387,20 +387,21 @@ class WebsiteStreamer {
 
     async startStreaming() {
         console.log('Starting FFmpeg stream...');
-
-        // 如果启用了音频，才下载背景音乐
-        let bgMusicPath = null;
+        
+        // 不再下载单个音乐文件，而是准备一个播放列表
+        let playlistPath = null;
         if (this.config.enableAudio) {
             try {
-                bgMusicPath = await this.downloadBackgroundTrack();
-                console.log(`Using background music: ${bgMusicPath}`);
+                // 创建一个包含所有音乐的播放列表
+                playlistPath = await this.createMusicPlaylist();
+                console.log(`Using music playlist: ${playlistPath}`);
             } catch (error) {
-                console.error('Failed to download background music, using default audio:', error);
+                console.error('Failed to create music playlist, using default audio:', error);
             }
         } else {
             console.log('Background audio is disabled');
         }
-
+        
         // 首先检查音频设备
         if (!this.config.isMac) {
             try {
@@ -416,6 +417,7 @@ class WebsiteStreamer {
             }
         }
 
+        // 修改 FFmpeg 参数，使用播放列表而不是单个文件
         const ffmpegArgs = this.config.isMac ? [
             // macOS configuration
             '-f', 'avfoundation',
@@ -445,17 +447,18 @@ class WebsiteStreamer {
             '-video_size', `${this.config.resolution.width}x${this.config.resolution.height}`,
             '-draw_mouse', '0',
             '-i', ':99.0+0,0',
-
-            // 根据音频设置决定使用什么音频源
-            ...(this.config.enableAudio && bgMusicPath ? [
-                '-stream_loop', '-1',
-                '-i', bgMusicPath,
+            
+            // 使用播放列表而不是单个文件
+            ...(this.config.enableAudio && playlistPath ? [
+                '-f', 'concat',
+                '-safe', '0',
+                '-i', playlistPath,
                 '-c:v', 'libx264',
                 '-c:a', 'aac',
                 '-b:a', '128k',
                 '-ar', '44100',
-                '-shortest',
             ] : [
+                // 无背景音乐时使用无声音频
                 '-f', 'lavfi',
                 '-i', 'anullsrc=r=44100:cl=stereo',
                 '-c:v', 'libx264',
@@ -559,6 +562,57 @@ class WebsiteStreamer {
             await this.cleanup();
             process.exit();
         });
+    }
+
+    // 新增方法：创建音乐播放列表
+    async createMusicPlaylist() {
+        console.log('Creating music playlist...');
+        
+        // 随机排序音乐列表
+        const shuffledTracks = [...bgTracks].sort(() => Math.random() - 0.5);
+        
+        // 下载所有音乐文件
+        const downloadedFiles = [];
+        for (let i = 0; i < shuffledTracks.length; i++) {
+            const track = shuffledTracks[i];
+            try {
+                const tempDir = '/tmp';
+                const fileName = `track_${i}_${path.basename(track)}`;
+                const filePath = path.join(tempDir, fileName);
+                
+                await new Promise((resolve, reject) => {
+                    const file = fs.createWriteStream(filePath);
+                    https.get(track, (response) => {
+                        response.pipe(file);
+                        file.on('finish', () => {
+                            file.close();
+                            console.log(`Downloaded music file ${i+1}/${shuffledTracks.length}: ${filePath}`);
+                            downloadedFiles.push(filePath);
+                            resolve();
+                        });
+                    }).on('error', (err) => {
+                        fs.unlink(filePath, () => {});
+                        console.error(`Error downloading music file: ${err.message}`);
+                        reject(err);
+                    });
+                });
+            } catch (error) {
+                console.error(`Failed to download track ${i+1}: ${error}`);
+            }
+        }
+        
+        // 创建 FFmpeg 播放列表文件
+        const playlistPath = '/tmp/music_playlist.txt';
+        let playlistContent = '';
+        
+        for (const file of downloadedFiles) {
+            playlistContent += `file '${file}'\n`;
+        }
+        
+        fs.writeFileSync(playlistPath, playlistContent);
+        console.log(`Created playlist with ${downloadedFiles.length} tracks`);
+        
+        return playlistPath;
     }
 }
 
