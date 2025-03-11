@@ -46,9 +46,9 @@ class WebsiteStreamer {
         this.retryCount = 0;
         this.bgMusicPath = null; // 用于存储背景音乐的路径
         this.currentTrackIndex = null; // 跟踪当前播放的曲目索引
-        
-        // 每 4 小时重启一次流
-        this.restartInterval = parseInt(process.env.RESTART_INTERVAL || 4 * 60 * 60 * 1000);
+
+        // 每 2 小时重启一次流
+        this.restartInterval = parseInt(process.env.RESTART_INTERVAL || 2 * 60 * 60 * 1000);
         this.restartTimer = null;
     }
 
@@ -58,10 +58,10 @@ class WebsiteStreamer {
             await this.setupBrowser();
             await this.startStreaming();
             this.setupCleanup();
-            
+
             // 设置定期重启
             if (this.restartInterval > 0) {
-                console.log(`Setting up automatic restart every ${this.restartInterval/1000/60/60} hours`);
+                console.log(`Setting up automatic restart every ${this.restartInterval / 1000 / 60 / 60} hours`);
                 this.restartTimer = setTimeout(async () => {
                     console.log('Scheduled restart triggered');
                     await this.cleanup();
@@ -392,7 +392,7 @@ class WebsiteStreamer {
                     resolve(filePath);
                 });
             }).on('error', (err) => {
-                fs.unlink(filePath, () => {}); // 删除不完整的文件
+                fs.unlink(filePath, () => { }); // 删除不完整的文件
                 console.error(`Error downloading background music: ${err.message}`);
                 reject(err);
             });
@@ -401,7 +401,7 @@ class WebsiteStreamer {
 
     async startStreaming() {
         console.log('Starting FFmpeg stream...');
-        
+
         // 不再下载单个音乐文件，而是准备一个播放列表
         let playlistPath = null;
         if (this.config.enableAudio) {
@@ -415,7 +415,7 @@ class WebsiteStreamer {
         } else {
             console.log('Background audio is disabled');
         }
-        
+
         // 首先检查音频设备
         if (!this.config.isMac) {
             try {
@@ -464,7 +464,7 @@ class WebsiteStreamer {
             '-video_size', `${this.config.resolution.width}x${this.config.resolution.height}`,
             '-draw_mouse', '0',
             '-i', ':99.0+0,0',
-            
+
             // 使用播放列表而不是单个文件
             ...(this.config.enableAudio && playlistPath ? [
                 '-f', 'concat',
@@ -560,7 +560,7 @@ class WebsiteStreamer {
             clearTimeout(this.restartTimer);
             this.restartTimer = null;
         }
-        
+
         // 清理临时音乐文件
         if (this.bgMusicPath && fs.existsSync(this.bgMusicPath)) {
             try {
@@ -593,10 +593,10 @@ class WebsiteStreamer {
     // 新增方法：创建音乐播放列表
     async createMusicPlaylist() {
         console.log('Creating music playlist...');
-        
+
         // 随机排序音乐列表
         const shuffledTracks = [...bgTracks].sort(() => Math.random() - 0.5);
-        
+
         // 下载所有音乐文件
         const downloadedFiles = [];
         for (let i = 0; i < shuffledTracks.length; i++) {
@@ -605,39 +605,39 @@ class WebsiteStreamer {
                 const tempDir = '/tmp';
                 const fileName = `track_${i}_${path.basename(track)}`;
                 const filePath = path.join(tempDir, fileName);
-                
+
                 await new Promise((resolve, reject) => {
                     const file = fs.createWriteStream(filePath);
                     https.get(track, (response) => {
                         response.pipe(file);
                         file.on('finish', () => {
                             file.close();
-                            console.log(`Downloaded music file ${i+1}/${shuffledTracks.length}: ${filePath}`);
+                            console.log(`Downloaded music file ${i + 1}/${shuffledTracks.length}: ${filePath}`);
                             downloadedFiles.push(filePath);
                             resolve();
                         });
                     }).on('error', (err) => {
-                        fs.unlink(filePath, () => {});
+                        fs.unlink(filePath, () => { });
                         console.error(`Error downloading music file: ${err.message}`);
                         reject(err);
                     });
                 });
             } catch (error) {
-                console.error(`Failed to download track ${i+1}: ${error}`);
+                console.error(`Failed to download track ${i + 1}: ${error}`);
             }
         }
-        
+
         // 创建 FFmpeg 播放列表文件
         const playlistPath = '/tmp/music_playlist.txt';
         let playlistContent = '';
-        
+
         for (const file of downloadedFiles) {
             playlistContent += `file '${file}'\n`;
         }
-        
+
         fs.writeFileSync(playlistPath, playlistContent);
         console.log(`Created playlist with ${downloadedFiles.length} tracks`);
-        
+
         return playlistPath;
     }
 }
