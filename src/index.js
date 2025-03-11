@@ -51,6 +51,14 @@ class WebsiteStreamer {
         // 保留内容检测相关的变量
         this.lastScreenshotHash = '';
         this.unchangedCount = 0;
+
+        // 添加一个数组来跟踪所有下载的音频文件
+        this.downloadedMusicFiles = [];
+
+        // 添加一个数组来跟踪所有保存的截图
+        this.savedScreenshots = [];
+        // 设置要保留的最大截图数量
+        this.maxScreenshots = 10;
     }
 
     async start() {
@@ -356,10 +364,22 @@ class WebsiteStreamer {
                 // 计算当前屏幕的哈希值
                 const currentHash = crypto.createHash('md5').update(screenshot).digest('hex');
                 
-                // 如果与上次哈希值相同，说明屏幕内容没有变化
-                if (this.lastScreenshotHash && this.lastScreenshotHash === currentHash) {
-                    this.unchangedCount++;
-                    console.log(`Screen content unchanged for ${this.unchangedCount} minute(s)`);
+                // 如果有上一次的哈希值，计算差异
+                if (this.lastScreenshotHash) {
+                    // 计算哈希值有多少位不同（简单的差异度量）
+                    let diffCount = 0;
+                    for (let i = 0; i < currentHash.length; i++) {
+                        if (currentHash[i] !== this.lastScreenshotHash[i]) {
+                            diffCount++;
+                        }
+                    }
+                    const diffPercentage = (diffCount / currentHash.length) * 100;
+                    
+                    console.log(`Screen change: ${diffPercentage.toFixed(2)}% different from last check`);
+                    
+                    if (diffPercentage < 0.1) {
+                        console.log('Very small change detected, might indicate minimal updates');
+                    }
                     
                     // 如果连续2分钟没有变化，则刷新页面
                     if (this.unchangedCount >= 2) {
@@ -383,6 +403,37 @@ class WebsiteStreamer {
 
         // 确保在清理时停止这个间隔
         this.contentChangeDetectionInterval = contentChangeDetectionInterval;
+
+        // 每5分钟保存一次截图用于后续分析
+        const screenshotInterval = setInterval(async () => {
+            try {
+                const timestamp = new Date().toISOString().replace(/:/g, '-');
+                const screenshotPath = `/tmp/debug-screenshot-${timestamp}.jpg`;
+                await page.screenshot({ path: screenshotPath, quality: 50, type: 'jpeg' });
+                console.log(`Debug screenshot saved to ${screenshotPath}`);
+                
+                // 添加到截图列表
+                this.savedScreenshots.push(screenshotPath);
+                
+                // 如果超过最大数量，删除最旧的截图
+                if (this.savedScreenshots.length > this.maxScreenshots) {
+                    const oldestScreenshot = this.savedScreenshots.shift();
+                    if (fs.existsSync(oldestScreenshot)) {
+                        try {
+                            fs.unlinkSync(oldestScreenshot);
+                            console.log(`Deleted oldest screenshot: ${oldestScreenshot}`);
+                        } catch (error) {
+                            console.error(`Failed to delete screenshot: ${error}`);
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error('Error saving debug screenshot:', error);
+            }
+        }, 5 * 60 * 1000);
+
+        // 在cleanup中清理
+        this.screenshotInterval = screenshotInterval;
     }
 
     async downloadBackgroundTrack() {
@@ -618,6 +669,55 @@ class WebsiteStreamer {
         if (this.browser) await this.browser.close();
         if (this.xvfb) this.xvfb.kill();
         if (this.ffmpeg) this.ffmpeg.kill();
+
+        // 清理截图间隔
+        if (this.screenshotInterval) {
+            clearInterval(this.screenshotInterval);
+            this.screenshotInterval = null;
+        }
+
+        // 清理所有下载的音频文件
+        if (this.downloadedMusicFiles && this.downloadedMusicFiles.length > 0) {
+            console.log(`Cleaning up ${this.downloadedMusicFiles.length} music files...`);
+            for (const filePath of this.downloadedMusicFiles) {
+                if (fs.existsSync(filePath)) {
+                    try {
+                        fs.unlinkSync(filePath);
+                    } catch (error) {
+                        console.error(`Failed to delete music file ${filePath}: ${error}`);
+                    }
+                }
+            }
+            console.log('All music files cleaned up');
+            this.downloadedMusicFiles = [];
+        }
+        
+        // 清理播放列表文件
+        const playlistPath = '/tmp/music_playlist.txt';
+        if (fs.existsSync(playlistPath)) {
+            try {
+                fs.unlinkSync(playlistPath);
+                console.log('Playlist file deleted');
+            } catch (error) {
+                console.error(`Failed to delete playlist file: ${error}`);
+            }
+        }
+
+        // 清理所有保存的截图
+        if (this.savedScreenshots && this.savedScreenshots.length > 0) {
+            console.log(`Cleaning up ${this.savedScreenshots.length} screenshots...`);
+            for (const screenshotPath of this.savedScreenshots) {
+                if (fs.existsSync(screenshotPath)) {
+                    try {
+                        fs.unlinkSync(screenshotPath);
+                    } catch (error) {
+                        console.error(`Failed to delete screenshot ${screenshotPath}: ${error}`);
+                    }
+                }
+            }
+            console.log('All screenshots cleaned up');
+            this.savedScreenshots = [];
+        }
     }
 
     setupCleanup() {
@@ -634,7 +734,7 @@ class WebsiteStreamer {
         });
     }
 
-    // 新增方法：创建音乐播放列表
+    // 修改创建播放列表的方法，保存文件路径
     async createMusicPlaylist() {
         console.log('Creating music playlist...');
 
@@ -658,6 +758,8 @@ class WebsiteStreamer {
                             file.close();
                             console.log(`Downloaded music file ${i + 1}/${shuffledTracks.length}: ${filePath}`);
                             downloadedFiles.push(filePath);
+                            // 添加到全局跟踪数组
+                            this.downloadedMusicFiles.push(filePath);
                             resolve();
                         });
                     }).on('error', (err) => {
