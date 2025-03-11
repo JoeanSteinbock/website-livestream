@@ -4,6 +4,7 @@ const os = require('os');
 const fs = require('fs');
 const path = require('path');
 const https = require('https');
+const crypto = require('crypto');
 
 // 背景音乐轨道列表
 const bgTracks = [
@@ -47,9 +48,13 @@ class WebsiteStreamer {
         this.bgMusicPath = null; // 用于存储背景音乐的路径
         this.currentTrackIndex = null; // 跟踪当前播放的曲目索引
 
-        // 每 2 小时重启一次流
-        this.restartInterval = parseInt(process.env.RESTART_INTERVAL || 2 * 60 * 60 * 1000);
+        // 每 1 小时重启一次流
+        this.restartInterval = parseInt(process.env.RESTART_INTERVAL || 1 * 60 * 60 * 1000);
         this.restartTimer = null;
+
+        // 在 setupBrowser 方法中
+        this.lastScreenshotHash = '';
+        this.unchangedCount = 0;
     }
 
     async start() {
@@ -213,7 +218,7 @@ class WebsiteStreamer {
 
         // 等待页面上的特定元素出现
         try {
-            await page.waitForSelector('.chart-container', { timeout: 3000 });
+            await page.waitForSelector('.chart-container', { timeout: 1000 });
             console.log('Chart container found');
         } catch (error) {
             console.log('Could not find chart container, continuing anyway');
@@ -335,7 +340,7 @@ class WebsiteStreamer {
         });
 
         // 等待额外时间确保页面完全渲染
-        await new Promise(resolve => setTimeout(resolve, 10000));
+        await new Promise(resolve => setTimeout(resolve, 5000));
 
         // 截取屏幕截图
         console.log('Taking screenshot to verify rendering...');
@@ -351,6 +356,47 @@ class WebsiteStreamer {
         await page.emulateMediaFeatures([
             { name: 'prefers-color-scheme', value: 'dark' }
         ]);
+
+        // 在 setupBrowser 方法中添加屏幕内容变化检测
+        // 添加在 setupBrowser 方法结尾，替换之前的 15 分钟刷新代码
+
+        // 每分钟检查一次屏幕内容是否更新
+        const contentChangeDetectionInterval = setInterval(async () => {
+            try {
+                console.log('Checking screen content for changes...');
+                // 截取当前屏幕
+                const screenshot = await page.screenshot({ encoding: 'base64', quality: 10, type: 'jpeg' });
+                
+                // 计算当前屏幕的哈希值
+                const currentHash = crypto.createHash('md5').update(screenshot).digest('hex');
+                
+                // 如果与上次哈希值相同，说明屏幕内容没有变化
+                if (this.lastScreenshotHash && this.lastScreenshotHash === currentHash) {
+                    this.unchangedCount++;
+                    console.log(`Screen content unchanged for ${this.unchangedCount} minute(s)`);
+                    
+                    // 如果连续2分钟没有变化，则刷新页面
+                    if (this.unchangedCount >= 2) {
+                        console.log('Screen content not changing for 2 minutes, forcing page reload');
+                        await page.reload({ waitUntil: ['networkidle0', 'domcontentloaded'] });
+                        this.unchangedCount = 0; // 重置计数器
+                    }
+                } else {
+                    // 如果内容已更新，重置计数器
+                    if (this.lastScreenshotHash && this.lastScreenshotHash !== currentHash) {
+                        console.log('Screen content has changed, content is updating properly');
+                        this.unchangedCount = 0;
+                    }
+                    // 更新哈希值
+                    this.lastScreenshotHash = currentHash;
+                }
+            } catch (error) {
+                console.error('Error checking screen content:', error);
+            }
+        }, 60 * 1000); // 每分钟检查一次
+
+        // 确保在清理时停止这个间隔
+        this.contentChangeDetectionInterval = contentChangeDetectionInterval;
     }
 
     async downloadBackgroundTrack() {
@@ -446,8 +492,8 @@ class WebsiteStreamer {
             '-maxrate', '4000k',
             '-bufsize', '8000k',
             '-pix_fmt', 'yuv420p',
-            '-g', '60',
-            '-keyint_min', '60',
+            '-g', '30',
+            '-keyint_min', '30',
             '-force_key_frames', 'expr:gte(t,n_forced*2)',
             '-sc_threshold', '0',
             '-f', 'flv',
@@ -462,7 +508,7 @@ class WebsiteStreamer {
             '-reconnect_delay_max', '120',
             '-flush_packets', '1',
             '-fflags', '+nobuffer',
-            `rtmp://a.rtmp.youtube.com/live2/${this.config.streamKey}`
+            `rtmp://b.rtmp.youtube.com/live2/${this.config.streamKey}`
         ] : [
             // Linux 配置
             '-f', 'x11grab',
@@ -496,8 +542,8 @@ class WebsiteStreamer {
             '-maxrate', '4000k',
             '-bufsize', '8000k',
             '-pix_fmt', 'yuv420p',
-            '-g', '60',
-            '-keyint_min', '60',
+            '-g', '30',
+            '-keyint_min', '30',
             '-force_key_frames', 'expr:gte(t,n_forced*2)',
             '-sc_threshold', '0',
             '-f', 'flv',
@@ -515,7 +561,7 @@ class WebsiteStreamer {
             '-reconnect_delay_max', '120',
             '-flush_packets', '1',
             '-fflags', '+nobuffer',
-            `rtmp://a.rtmp.youtube.com/live2/${this.config.streamKey}`
+            `rtmp://b.rtmp.youtube.com/live2/${this.config.streamKey}`
         ];
 
         // 在启动 FFmpeg 之前检查版本和功能
@@ -572,7 +618,13 @@ class WebsiteStreamer {
             clearTimeout(this.restartTimer);
             this.restartTimer = null;
         }
-
+        
+        // 清除内容变化检测间隔
+        if (this.contentChangeDetectionInterval) {
+            clearInterval(this.contentChangeDetectionInterval);
+            this.contentChangeDetectionInterval = null;
+        }
+        
         // 清理临时音乐文件
         if (this.bgMusicPath && fs.existsSync(this.bgMusicPath)) {
             try {
