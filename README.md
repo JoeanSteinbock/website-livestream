@@ -42,12 +42,12 @@ docker run ghcr.io/joeansteinbock/website-livestream \
 
 2. Run the container:
    ```bash
-   docker run website-livestream <website-url> <youtube-stream-key>
+   docker run website-livestream <website-url> <youtube-stream-key> <enable-audio>
    ```
 
    Or with custom resolution:
    ```bash
-   docker run -e RESOLUTION_WIDTH=1920 -e RESOLUTION_HEIGHT=1080 website-livestream <website-url> <youtube-stream-key>
+   docker run -e RESOLUTION_WIDTH=1920 -e RESOLUTION_HEIGHT=1080 website-livestream <website-url> <youtube-stream-key> <enable-audio>
    ```
 
 ### Local Execution (Alternative)

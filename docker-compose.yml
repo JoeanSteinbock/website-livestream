@@ -1,0 +1,32 @@
+version: '3.8'
+
+services:
+  crypto-btc:
+    image: ghcr.io/joeansteinbock/website-livestream:latest
+    container_name: crypto-btc
+    restart: unless-stopped
+    environment:
+      - WEBSITE_URL=https://cryptotick.live/bitcoin?pm=true&api_key=${COINGECKO_API_KEY}&api_type=${COINGECKO_API_TYPE}
+      - YOUTUBE_STREAM_KEY=${YOUTUBE_STREAM_KEY_BTC}
+      - ENABLE_AUDIO=true
+      - RESOLUTION_WIDTH=1280
+      - RESOLUTION_HEIGHT=720
+      - RETRY_DELAY=5000
+      - MAX_RETRIES=3
+    volumes:
+      - /tmp/.X11-unix:/tmp/.X11-unix
+    
+  crypto-eth:
+    image: ghcr.io/joeansteinbock/website-livestream:latest
+    container_name: crypto-eth
+    restart: unless-stopped
+    environment:
+      - WEBSITE_URL=https://cryptotick.live/ethereum?pm=true&api_key=${COINGECKO_API_KEY}&api_type=${COINGECKO_API_TYPE}
+      - YOUTUBE_STREAM_KEY=${YOUTUBE_STREAM_KEY_ETH}
+      - ENABLE_AUDIO=true
+      - RESOLUTION_WIDTH=1280
+      - RESOLUTION_HEIGHT=720
+      - RETRY_DELAY=5000
+      - MAX_RETRIES=3
+    volumes:
+      - /tmp/.X11-unix:/tmp/.X11-unix 
