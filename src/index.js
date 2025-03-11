@@ -485,15 +485,21 @@ class WebsiteStreamer {
     async startStreaming() {
         console.log('Starting FFmpeg stream...');
 
-        // 不再下载单个音乐文件，而是准备一个播放列表
+        // 下载播放列表音乐
         let playlistPath = null;
+        let specialAudioPath = null;
+        
         if (this.config.enableAudio) {
             try {
                 // 创建一个包含所有音乐的播放列表
                 playlistPath = await this.createMusicPlaylist();
                 console.log(`Using music playlist: ${playlistPath}`);
+                
+                // 下载特定的音频文件
+                specialAudioPath = await this.downloadSpecialAudio();
+                console.log(`Using special audio: ${specialAudioPath}`);
             } catch (error) {
-                console.error('Failed to create music playlist, using default audio:', error);
+                console.error('Failed to prepare audio, using default audio:', error);
             }
         } else {
             console.log('Background audio is disabled');
@@ -514,7 +520,7 @@ class WebsiteStreamer {
             }
         }
 
-        // 修改 FFmpeg 参数，使用播放列表而不是单个文件
+        // 修改 FFmpeg 参数，混合两个音频源
         const ffmpegArgs = this.config.isMac ? [
             // macOS configuration
             '-f', 'avfoundation',
@@ -553,12 +559,37 @@ class WebsiteStreamer {
             '-video_size', `${this.config.resolution.width}x${this.config.resolution.height}`,
             '-draw_mouse', '0',
             '-i', ':99.0+0,0',
-
-            // 使用播放列表而不是单个文件
-            ...(this.config.enableAudio && playlistPath ? [
+            '-thread_queue_size', '1024',
+            '-probesize', '32M',
+            '-analyzeduration', '10000000',
+            '-r', '30',
+            '-vsync', 'cfr',
+            '-copytb', '1',
+            '-fflags', '+discardcorrupt+genpts+nobuffer',
+            '-flags', '+low_delay',
+            '-strict', 'experimental',
+            
+            // 使用播放列表和特定音频
+            ...(this.config.enableAudio && playlistPath && specialAudioPath ? [
                 '-f', 'concat',
                 '-safe', '0',
                 '-i', playlistPath,
+                // 添加特定音频作为第二个输入
+                '-stream_loop', '-1', // 无限循环
+                '-i', specialAudioPath,
+                // 混合两个音频流
+                '-filter_complex', [
+                    // 主背景音乐处理
+                    '[0:a]asetpts=PTS-STARTPTS,atempo=0.98,asetrate=44100*1.02,volume=0.5[main];',
+                    // 特殊音频处理：每5秒重复一次
+                    '[1:a]volume=0.3,asetpts=PTS-STARTPTS,',
+                    'aselect=\'mod(floor(t),5)=0\',', // 改用相等判断，每5秒触发一次
+                    'asetpts=N/SR/TB[effect];',
+                    // 混合两个音频流
+                    '[main][effect]amix=inputs=2:duration=longest[aout]'
+                ].join(''),
+                '-map', '0:v',
+                '-map', '[aout]',
                 '-c:v', 'libx264',
                 '-c:a', 'aac',
                 '-b:a', '128k',
@@ -572,6 +603,7 @@ class WebsiteStreamer {
                 '-b:a', '128k',
                 '-ar', '44100',
             ]),
+            
             '-preset', 'veryfast',
             '-tune', 'zerolatency',
             '-b:v', '4000k',
@@ -586,9 +618,6 @@ class WebsiteStreamer {
             '-f', 'flv',
             '-flvflags', 'no_duration_filesize',
             '-threads', '4',
-            '-probesize', '42M',
-            '-analyzeduration', '5000000',
-            '-fps_mode', 'cfr',  // 使用 fps_mode 代替已弃用的 vsync
             '-max_muxing_queue_size', '9999',
             '-vsync', '1',
             '-async', '1',
@@ -615,25 +644,76 @@ class WebsiteStreamer {
         console.log('Starting FFmpeg with args:', ffmpegArgs.join(' '));
         this.ffmpeg = spawn('ffmpeg', ffmpegArgs);
 
+        // 添加 FFmpeg 活动监控
+        let lastOutputTime = Date.now();
+        let ffmpegOutputCount = 0;
+        
         this.ffmpeg.stderr.on('data', (data) => {
             const message = data.toString();
-            console.log(`FFmpeg: ${message}`);
+            ffmpegOutputCount++;
+            lastOutputTime = Date.now();
+            
+            // 只记录每 100 条消息中的一条，避免日志过多
+            if (ffmpegOutputCount % 100 === 0) {
+                console.log(`FFmpeg: ${message}`);
+            }
+            
             if (message.includes('Error') || message.includes('error')) {
                 console.error('FFmpeg error detected:', message);
             }
         });
-
-        this.ffmpeg.on('error', (error) => {
-            console.error('FFmpeg process error:', error);
-            this.handleError();
-        });
-
-        this.ffmpeg.on('exit', (code, signal) => {
-            console.log(`FFmpeg process exited with code ${code} and signal ${signal}`);
-            if (code !== 0) {
-                this.handleError();
+        
+        // 添加 FFmpeg 健康检查
+        this.ffmpegHealthCheck = setInterval(() => {
+            const now = Date.now();
+            const timeSinceLastOutput = now - lastOutputTime;
+            
+            // 如果 30 秒没有输出，可能表示 FFmpeg 卡住了
+            if (timeSinceLastOutput > 30000) {
+                console.error(`FFmpeg may be stuck - no output for ${timeSinceLastOutput/1000} seconds`);
+                
+                // 尝试发送 SIGALRM 信号，这可能会让 FFmpeg 输出更多诊断信息
+                try {
+                    this.ffmpeg.kill('SIGALRM');
+                    console.log('Sent SIGALRM to FFmpeg process');
+                } catch (error) {
+                    console.error('Failed to send signal to FFmpeg:', error);
+                }
+                
+                // 如果 60 秒没有输出，重启 FFmpeg
+                if (timeSinceLastOutput > 60000) {
+                    console.error('FFmpeg appears to be completely stuck, restarting stream...');
+                    this.handleError();
+                }
             }
-        });
+        }, 10000); // 每 10 秒检查一次
+
+        // 每 3 小时重启一次 FFmpeg，但保持浏览器运行
+        this.ffmpegRestartTimer = setTimeout(async () => {
+            console.log('Scheduled FFmpeg restart');
+            if (this.ffmpeg) {
+                // 保存当前 FFmpeg 进程
+                const oldFfmpeg = this.ffmpeg;
+                this.ffmpeg = null;
+                
+                // 优雅地关闭旧进程
+                oldFfmpeg.stdin.write('q');
+                setTimeout(() => {
+                    if (!oldFfmpeg.killed) {
+                        oldFfmpeg.kill('SIGTERM');
+                    }
+                }, 5000);
+                
+                // 等待进程关闭
+                await new Promise(resolve => {
+                    oldFfmpeg.on('close', resolve);
+                    setTimeout(resolve, 10000); // 最多等待 10 秒
+                });
+                
+                // 重新启动流
+                await this.startStreaming();
+            }
+        }, 3 * 60 * 60 * 1000); // 3 小时
     }
 
     async handleError() {
@@ -718,6 +798,12 @@ class WebsiteStreamer {
             console.log('All screenshots cleaned up');
             this.savedScreenshots = [];
         }
+
+        // 清理 FFmpeg 健康检查
+        if (this.ffmpegHealthCheck) {
+            clearInterval(this.ffmpegHealthCheck);
+            this.ffmpegHealthCheck = null;
+        }
     }
 
     setupCleanup() {
@@ -785,6 +871,32 @@ class WebsiteStreamer {
         console.log(`Created playlist with ${downloadedFiles.length} tracks`);
 
         return playlistPath;
+    }
+
+    // 添加下载特定音频文件的方法
+    async downloadSpecialAudio() {
+        const specialAudioUrl = 'https://cdn.pixabay.com/download/audio/2022/03/10/audio_c8c8a73467.mp3?filename=electronic-future-beats-117997.mp3';
+        const tempDir = '/tmp';
+        const fileName = `special_audio_${Date.now()}.mp3`;
+        const filePath = path.join(tempDir, fileName);
+
+        return new Promise((resolve, reject) => {
+            const file = fs.createWriteStream(filePath);
+            https.get(specialAudioUrl, (response) => {
+                response.pipe(file);
+                file.on('finish', () => {
+                    file.close();
+                    console.log(`Downloaded special audio file: ${filePath}`);
+                    // 添加到全局跟踪数组
+                    this.downloadedMusicFiles.push(filePath);
+                    resolve(filePath);
+                });
+            }).on('error', (err) => {
+                fs.unlink(filePath, () => {});
+                console.error(`Error downloading special audio file: ${err.message}`);
+                reject(err);
+            });
+        });
     }
 }
 
