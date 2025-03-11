@@ -456,6 +456,10 @@ class WebsiteStreamer {
             '-max_muxing_queue_size', '9999',
             '-vsync', '1',
             '-async', '1',
+            '-reconnect', '1',
+            '-reconnect_at_eof', '1',
+            '-reconnect_streamed', '1',
+            '-reconnect_delay_max', '120',
             `rtmp://a.rtmp.youtube.com/live2/${this.config.streamKey}`
         ] : [
             // Linux 配置
@@ -503,6 +507,10 @@ class WebsiteStreamer {
             '-max_muxing_queue_size', '9999',
             '-vsync', '1',
             '-async', '1',
+            '-reconnect', '1',
+            '-reconnect_at_eof', '1',
+            '-reconnect_streamed', '1',
+            '-reconnect_delay_max', '120',
             `rtmp://a.rtmp.youtube.com/live2/${this.config.streamKey}`
         ];
 
