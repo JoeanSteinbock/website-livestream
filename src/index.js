@@ -460,6 +460,8 @@ class WebsiteStreamer {
             '-reconnect_at_eof', '1',
             '-reconnect_streamed', '1',
             '-reconnect_delay_max', '120',
+            '-flush_packets', '1',
+            '-fflags', '+nobuffer',
             `rtmp://a.rtmp.youtube.com/live2/${this.config.streamKey}`
         ] : [
             // Linux 配置
@@ -511,6 +513,8 @@ class WebsiteStreamer {
             '-reconnect_at_eof', '1',
             '-reconnect_streamed', '1',
             '-reconnect_delay_max', '120',
+            '-flush_packets', '1',
+            '-fflags', '+nobuffer',
             `rtmp://a.rtmp.youtube.com/live2/${this.config.streamKey}`
         ];
 
