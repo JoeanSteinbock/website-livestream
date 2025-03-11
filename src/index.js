@@ -45,14 +45,10 @@ class WebsiteStreamer {
         this.ffmpeg = null;
         this.xvfb = null;
         this.retryCount = 0;
-        this.bgMusicPath = null; // 用于存储背景音乐的路径
-        this.currentTrackIndex = null; // 跟踪当前播放的曲目索引
+        this.bgMusicPath = null;
+        this.currentTrackIndex = null;
 
-        // 每 1 小时重启一次流
-        this.restartInterval = parseInt(process.env.RESTART_INTERVAL || 1 * 60 * 60 * 1000);
-        this.restartTimer = null;
-
-        // 在 setupBrowser 方法中
+        // 保留内容检测相关的变量
         this.lastScreenshotHash = '';
         this.unchangedCount = 0;
     }
@@ -63,16 +59,6 @@ class WebsiteStreamer {
             await this.setupBrowser();
             await this.startStreaming();
             this.setupCleanup();
-
-            // 设置定期重启
-            if (this.restartInterval > 0) {
-                console.log(`Setting up automatic restart every ${this.restartInterval / 1000 / 60 / 60} hours`);
-                this.restartTimer = setTimeout(async () => {
-                    console.log('Scheduled restart triggered');
-                    await this.cleanup();
-                    this.start();
-                }, this.restartInterval);
-            }
         } catch (error) {
             console.error('Error starting stream:', error);
             await this.handleError();
@@ -613,13 +599,7 @@ class WebsiteStreamer {
     }
 
     async cleanup() {
-        // 清除重启计时器
-        if (this.restartTimer) {
-            clearTimeout(this.restartTimer);
-            this.restartTimer = null;
-        }
-        
-        // 清除内容变化检测间隔
+        // 保留内容变化检测的清理
         if (this.contentChangeDetectionInterval) {
             clearInterval(this.contentChangeDetectionInterval);
             this.contentChangeDetectionInterval = null;
